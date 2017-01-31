@@ -26,7 +26,7 @@ from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
 
 
 
-# filename = '/home/bashivan/Dropbox (MIT)/Codes/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
+filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
 
 
 # Training parameters
@@ -71,13 +71,17 @@ def load_data(labels_filename):
   features = []
   for filename in filenames:
     data = nb.load(filename)    # data shape is [x, y, z, time]
-    data = data.get_data()
+    data = data.dataobj[...,0:1]
+   # data = data.get_data()
     features.append(data)       # features shape is [samples, x, y, z, time]
 
   # input size to Conv3DDNNLayer is [batch_size, num_input_channels, input_depth (z), input_rows (x), input_columns (y)]
   # Rearrange and extend dimensions to have [time, samples, color, z, x, y]
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2])
                             , axis=2)  # Add another filler dimension for the samples
+  #features = np.repeat(features, 4, axis=0) 
+  #import pdb;
+  #pdb.set_trace()
 
   return features, np.asarray(labels), np.asarray(subjects)  # Sequential indices
 
@@ -129,13 +133,15 @@ def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(4, 2, 1),
   if W_init is None:
     W_init = [lasagne.init.GlorotUniform()] * sum(n_layers)
   # Input layer
-  network = InputLayer(shape=(None, num_input_channels, input_shape[0], input_shape[1], input_shape[2]),
+  network = InputLayer(shape=(None, num_input_channels, input_shape[-3], input_shape[-2], input_shape[-1]),
                        input_var=input_var)
 
   for i, s in enumerate(n_layers):
     for l in range(s):
       network = ConvLayer3D(network, num_filters=n_filters_first * (2 ** i), filter_size=(3, 3, 3),
                             W=W_init[count], pad='same')
+    
+   
       count += 1
       weights.append(network.W)
     network = MaxPoolLayer3D(network, pool_size=2)
@@ -158,6 +164,8 @@ def build_convpool_max(input_vars, input_shape=None):
       convnet, W_init = build_cnn(input_vars[i], input_shape)
     else:
       convnet, _ = build_cnn(input_vars[i], input_shape, W_init)
+
+
     convnets.append(convnet)
   # convpooling using Max pooling over frames
   convpool = ElemwiseMergeLayer(convnets, theano.tensor.maximum)
@@ -263,12 +271,13 @@ def build_convpool_mix(input_vars, input_shape=None):
       convnet, W_init = build_cnn(input_vars[i], input_shape)
     else:
       convnet, _ = build_cnn(input_vars[i], input_shape, W_init)
+    
+   
     convnets.append(FlattenLayer(convnet))
   # at this point convnets shape is [numTimeWin][n_samples, features]
   # we want the shape to be [n_samples, features, numTimeWin]
   convpool = ConcatLayer(convnets)
   # convpool = ReshapeLayer(convpool, ([0], -1, numTimeWin))
-
   convpool = ReshapeLayer(convpool, ([0], input_shape[0], get_output_shape(convnets[0])[1]))
   reformConvpool = DimshuffleLayer(convpool, (0, 2, 1))
 
@@ -331,6 +340,8 @@ def main(args):
   print("Loading data...")
   data, labels, subjects = load_data(filename)
 
+  import pdb
+  pdb.set_trace()
   # Create folds based on subject numbers (for leave-subject-out x-validation)
   fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
 
@@ -355,13 +366,13 @@ def main(args):
     print("Building model and compiling functions...")
     # Building the appropriate model
     if model == '1dconv':
-      network = build_convpool_conv1d(input_var, X_train.shape[-3:])
+      network = build_convpool_conv1d(input_var, X_train.shape)
     elif model == 'maxpool':
-      network = build_convpool_max(input_var, X_train.shape[-3:])
+      network = build_convpool_max(input_var, X_train.shape)
     elif model == 'lstm':
-      network = build_convpool_lstm(input_var, X_train.shape[-3:])
+      network = build_convpool_lstm(input_var, X_train.shape)
     elif model == 'mix':
-      network = build_convpool_mix(input_var, X_train.shape[-3:])
+      network = build_convpool_mix(input_var, X_train.shape)
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
