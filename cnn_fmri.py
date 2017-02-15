@@ -23,7 +23,7 @@ from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
 from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
 from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
 from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
-
+import h5py
 
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
@@ -44,7 +44,7 @@ DEFAULT_NUM_FOLDS = 5   # Default number of folds in cross validation
 # function that takes a Theano variable representing the input and returns
 # the output layer of a neural network model built in Lasagne.
 
-def load_data(labels_filename):
+def load_data():
   """
   Loads the data from nii files.
 
@@ -57,29 +57,24 @@ def load_data(labels_filename):
   data: array_like
   """
   ##### Load labels
-  with open(labels_filename, 'rb') as csvfile:
-    reader = csv.reader(csvfile, delimiter=',')
-    reader.next()
-    subjects, labels, filenames = [], [], []
-    for row in reader:
-      subj, label, filename = row
-      subjects.append(subj)
-      labels.append(label)
-      filenames.append(filename)
+  
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/all_output.hdf5','r')
+  dataset=f['/individual_TRs']
+  subjects, labels, features = [], [], []
+ 
 
+  for i in dataset.values():
+    subjects.append(i.attrs['subject_ID'])
+    labels.append(i.attrs['label'])
+    features.append(i[:])
+  #features=features[:70]
+  #labels=labels[:70]
+  #subjects=subjects[:70]
   # Load features
-  features = []
-  for filename in filenames:
-    data = nb.load(filename)    # data shape is [x, y, z, time]
-    data = data.dataobj[...,0:1]
-   # data = data.get_data()
-    features.append(data)       # features shape is [samples, x, y, z, time]
 
-  # input size to Conv3DDNNLayer is [batch_size, num_input_channels, input_depth (z), input_rows (x), input_columns (y)]
-  # Rearrange and extend dimensions to have [time, samples, color, z, x, y]
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2])
                             , axis=2)  # Add another filler dimension for the samples
-  #features = np.repeat(features, 4, axis=0) 
+  features = np.repeat(features, 4, axis=0) 
   #import pdb;
   #pdb.set_trace()
 
@@ -326,7 +321,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # ############################## Main program ################################
 def main(args):
   global num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels
-  filename = args.csv_file
+  #filename = args.csv_file
   num_epochs = args.num_epochs
   batch_size = args.batch_size
   num_folds = args.num_folds
@@ -338,10 +333,10 @@ def main(args):
   print('Model type is : {0}'.format(model))
   # Load the dataset
   print("Loading data...")
-  data, labels, subjects = load_data(filename)
+  data, labels, subjects = load_data()
 
-  import pdb
-  pdb.set_trace()
+  #import pdb
+ # pdb.set_trace()
   # Create folds based on subject numbers (for leave-subject-out x-validation)
   fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
 
@@ -479,8 +474,8 @@ def main(args):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Runs R-CNN on fMRI data.')
-  parser.add_argument('csv_file', metavar='F', type=str,
-                      help='CSV file containing subject IDs, labels, and filenames.')
+  #parser.add_argument('csv_file', metavar='F', type=str,
+   #                   help='CSV file containing subject IDs, labels, and filenames.')
   parser.add_argument('--num_epochs', dest='num_epochs', type=int,
                       help='Number of epochs',
                       default=DEFAULT_NUM_EPOCHS)
