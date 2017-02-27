@@ -5,29 +5,38 @@ Implementation using Lasagne module.
 Inputs are the 3d fMRI movies.
 """
 from __future__ import print_function
-import time
 import numpy as np
+import time
 np.random.seed(1234)
 import csv
 import os
 import argparse
 import nibabel as nb
 from sklearn.cross_validation import StratifiedKFold
-
+print('imported numpy, nibabel, sklearn')
 import theano
 import theano.tensor as T
+print('imported theano')
+
 import lasagne
+print('imported lasagne')
+
 from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
 from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
+print('imported lasagne dnn')
+
 from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
 from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
 from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
 from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
+print('imported lasagne layers')
+
 import h5py
+print('impoerted h5py')
 
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
-
+print('whassup last')
 
 # Training parameters
 DEFAULT_NUM_EPOCHS = 10  # Number of epochs for training
@@ -96,7 +105,8 @@ def reformatInput(data, labels, indices):
   if data.ndim == 5:
     return [(data[trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32)),
             (data[validIndices], np.squeeze(labels[validIndices]).astype(np.int32)),
-            (data[testIndices], np.squeeze(labels[testIndices]).astype(np.int32))]
+            (data[testIndices], np.squeeze(labels[testIndices]).astype(np.int32))]  
+	   
   elif data.ndim == 6:
     return [(data[:, trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32)),
             (data[:, validIndices], np.squeeze(labels[validIndices]).astype(np.int32)),
@@ -338,7 +348,18 @@ def main(args):
   #import pdb
  # pdb.set_trace()
   # Create folds based on subject numbers (for leave-subject-out x-validation)
-  fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
+  #fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
+
+  sub_nums=len(subjects)
+  
+  subs_in_fold = np.ceil(np.max(sub_nums) / float(num_folds))
+  fold_pairs = []
+
+  for i in range(num_folds):
+    test_ids = np.bitwise_and(sub_nums > subs_in_fold * i, sub_nums < subs_in_fold * (i + 1))
+    train_ids = ~test_ids
+    fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
+  
 
   # Initializing output variables
   validScores, testScores = [], []
