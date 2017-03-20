@@ -13,30 +13,18 @@ import os
 import argparse
 import nibabel as nb
 from sklearn.cross_validation import StratifiedKFold
-print('imported numpy, nibabel, sklearn')
 import theano
 import theano.tensor as T
-print('imported theano')
-
 import lasagne
-print('imported lasagne')
-
 from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
 from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
-print('imported lasagne dnn')
-
 from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
 from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
 from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
 from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
-print('imported lasagne layers')
-
 import h5py
-print('impoerted h5py')
-
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
-print('whassup last')
 
 # Training parameters
 DEFAULT_NUM_EPOCHS = 10  # Number of epochs for training
@@ -67,28 +55,33 @@ def load_data():
   """
   ##### Load labels
   
-  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/all_output.hdf5','r')
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/all_output_runs.hdf5','r')
   dataset=f['/individual_TRs']
-  subjects, labels, features = [], [], []
+  subjects, labels, features, runs  = [], [], [], []
  
 
   for i in dataset.values():
     subjects.append(i.attrs['subject_ID'])
     labels.append(i.attrs['label'])
+    runs.append(i.attrs['run'])
     features.append(i[:])
-  #features=features[:70]
-  #labels=labels[:70]
-  #subjects=subjects[:70]
+ 
+  #features=np.array(features)
   # Load features
+  features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
 
-  features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2])
-                            , axis=2)  # Add another filler dimension for the samples
-  features = np.repeat(features, 4, axis=0) 
-  #import pdb;
-  #pdb.set_trace()
-
-  return features, np.asarray(labels), np.asarray(subjects)  # Sequential indices
-
+  unique_IDs=[]
+  [unique_IDs.append(i) for i in subjects if not unique_IDs.count(i)]
+  dictionary_IDs={x:i for i,x  in enumerate(unique_IDs, start=1)}
+  
+  for i in range(len(subjects)):
+    subjects[i]= dictionary_IDs[subjects[i]]
+  
+  import pdb
+  pdb.set_trace()
+ 
+  return features, np.asarray(labels), np.asarray(subjects), np.asarray(runs)
+ 
 
 def reformatInput(data, labels, indices):
   """
@@ -316,6 +309,9 @@ def build_convpool_mix(input_vars, input_shape=None):
 # Borrowed from Lasagne example
 def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
   input_len = inputs.shape[1]
+  
+
+
   assert input_len == len(targets)
   if shuffle:
     indices = np.arange(input_len)
@@ -343,24 +339,25 @@ def main(args):
   print('Model type is : {0}'.format(model))
   # Load the dataset
   print("Loading data...")
-  data, labels, subjects = load_data()
-
-  #import pdb
- # pdb.set_trace()
-  # Create folds based on subject numbers (for leave-subject-out x-validation)
+  data, labels, subjects, runs  = load_data()
+  
   #fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
 
-  sub_nums=len(subjects)
   
+  sub_nums=subjects
   subs_in_fold = np.ceil(np.max(sub_nums) / float(num_folds))
+  
   fold_pairs = []
+
 
   for i in range(num_folds):
     test_ids = np.bitwise_and(sub_nums > subs_in_fold * i, sub_nums < subs_in_fold * (i + 1))
     train_ids = ~test_ids
     fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
-  
+ 
+  #need the leave one subject out method
 
+  
   # Initializing output variables
   validScores, testScores = [], []
   trainLoss = np.zeros((len(fold_pairs), num_epochs))
@@ -371,6 +368,8 @@ def main(args):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold)
+    
+    
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
@@ -430,6 +429,7 @@ def main(args):
       train_batches = 0
       start_time = time.time()
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
+        
         inputs, targets = batch
         train_err += train_fn(inputs, targets)
         train_batches += 1
