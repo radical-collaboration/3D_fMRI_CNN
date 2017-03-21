@@ -393,13 +393,18 @@ def main(args):
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+  
+   
     loss = loss.mean()
     # We could add some weight decay as well here, see lasagne.regularization.
 
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step.
     params = lasagne.layers.get_all_params(network, trainable=True)
-    updates = lasagne.updates.adam(loss, params, learning_rate=0.001)
+
+
+    #modified learning rate from 0.001 to 0.01
+    updates = lasagne.updates.adam(loss, params, learning_rate=0.01)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -418,7 +423,8 @@ def main(args):
 
     # Compile a second function computing the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
-
+  
+ 
     # Finally, launch the training loop.
     print("Starting training...")
     best_validation_accu = 0
@@ -429,21 +435,35 @@ def main(args):
       train_batches = 0
       start_time = time.time()
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
-        
+
+
         inputs, targets = batch
         train_err += train_fn(inputs, targets)
         train_batches += 1
+        #debugging by adding av_train_err and print training loss
+	av_train_err = train_err / train_batches
+        print("  training loss:\t\t{:.6f}".format(av_train_err))
 
       # And a full pass over the validation data:
       val_err = 0
       val_acc = 0
       val_batches = 0
       for batch in iterate_minibatches(X_val, y_val, batch_size, shuffle=False):
-        inputs, targets = batch
+
+
+	inputs, targets = batch
         err, acc = val_fn(inputs, targets)
-        val_err += err
+     
+	val_err += err
         val_acc += acc
         val_batches += 1
+     
+        #debugging by adding av_val_err and av_val_acc
+	av_val_err = val_err / val_batches
+	av_val_acc = val_acc / val_batches
+        print("  validation loss:\t\t{:.6f}".format(av_val_err))
+	print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+     
       av_train_err = train_err / train_batches
       av_val_err = val_err / val_batches
       av_val_acc = val_acc / val_batches
