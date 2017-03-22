@@ -69,8 +69,8 @@ def load_data():
   
   features_mean=np.mean(features)
   features_std=np.std(features)
-  import pdb
-  pdb.set_trace()
+ 
+
 
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
@@ -375,12 +375,13 @@ def main(args):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold)
-    print("  mean_data:\t\t{:.6f}".format(np.mean(data)))
-    print("  std_data:\t\t{:.6f}".format(np.std(data)))
     
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
+    
+    X_train_mean=np.mean(X_train, axis=(0,1))
+    X_train_std=np.std(X_train, axis=(0,1))
 
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
@@ -445,14 +446,11 @@ def main(args):
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
 
         inputs, targets = batch
-        import pdb
-	pdb.set_trace()
-	inputs_mean=np.mean(inputs)
-        inputs_std=np.std(inputs)
-	inputs=(inputs[:,:,:,:,:,:]-inputs_mean)/inputs_std
-	
-     	print("inputs_mean:\t\t{:.6f}".format(np.mean(inputs)))
-	train_batches += 1
+ 	inputs=(inputs-X_train_mean)/X_train_std
+    #this is the forwards pass -> need to time 
+        train_err += train_fn(inputs, targets)
+    
+        train_batches += 1
         #debugging by adding av_train_err and print training loss
 	av_train_err = train_err / train_batches
         print("  training loss:\t\t{:.6f}".format(av_train_err))
@@ -466,7 +464,7 @@ def main(args):
 
 	inputs, targets = batch
         err, acc = val_fn(inputs, targets)
-     
+       #val_fn is the backwards pass -> need to measure
 	val_err += err
         val_acc += acc
         val_batches += 1
