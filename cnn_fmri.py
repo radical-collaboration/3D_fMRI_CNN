@@ -65,8 +65,13 @@ def load_data():
     labels.append(i.attrs['label'])
     runs.append(i.attrs['run'])
     features.append(i[:])
- 
-  #features=np.array(features)
+    
+  
+  features_mean=np.mean(features)
+  features_std=np.std(features)
+  import pdb
+  pdb.set_trace()
+
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
 
@@ -77,9 +82,13 @@ def load_data():
   for i in range(len(subjects)):
     subjects[i]= dictionary_IDs[subjects[i]]
   
-  import pdb
-  pdb.set_trace()
- 
+  
+  features_mean=np.mean(features)
+  features_std=np.std(features)
+
+  #features=(features[:,:,:,:,:]-features_mean)/features_std
+
+
   return features, np.asarray(labels), np.asarray(subjects), np.asarray(runs)
  
 
@@ -311,7 +320,6 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
   input_len = inputs.shape[1]
   
 
-
   assert input_len == len(targets)
   if shuffle:
     indices = np.arange(input_len)
@@ -340,15 +348,14 @@ def main(args):
   # Load the dataset
   print("Loading data...")
   data, labels, subjects, runs  = load_data()
-  
-  #fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
+  print("  mean_features:\t\t{:.6f}".format(np.mean(data)))
+  print("  std_features:\t\t{:.6f}".format(np.std(data)))
 
-  
+  #fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
   sub_nums=subjects
   subs_in_fold = np.ceil(np.max(sub_nums) / float(num_folds))
   
   fold_pairs = []
-
 
   for i in range(num_folds):
     test_ids = np.bitwise_and(sub_nums > subs_in_fold * i, sub_nums < subs_in_fold * (i + 1))
@@ -368,7 +375,8 @@ def main(args):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold)
-    
+    print("  mean_data:\t\t{:.6f}".format(np.mean(data)))
+    print("  std_data:\t\t{:.6f}".format(np.std(data)))
     
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
@@ -403,7 +411,7 @@ def main(args):
     params = lasagne.layers.get_all_params(network, trainable=True)
 
 
-    #modified learning rate from 0.001 to 0.01
+   
     updates = lasagne.updates.adam(loss, params, learning_rate=0.01)
 
     # Create a loss expression for validation/testing. The crucial difference
@@ -436,10 +444,15 @@ def main(args):
       start_time = time.time()
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
 
-
         inputs, targets = batch
-        train_err += train_fn(inputs, targets)
-        train_batches += 1
+        import pdb
+	pdb.set_trace()
+	inputs_mean=np.mean(inputs)
+        inputs_std=np.std(inputs)
+	inputs=(inputs[:,:,:,:,:,:]-inputs_mean)/inputs_std
+	
+     	print("inputs_mean:\t\t{:.6f}".format(np.mean(inputs)))
+	train_batches += 1
         #debugging by adding av_train_err and print training loss
 	av_train_err = train_err / train_batches
         print("  training loss:\t\t{:.6f}".format(av_train_err))
