@@ -382,6 +382,7 @@ def main(args):
     
     X_train_mean=np.mean(X_train, axis=(0,1))
     X_train_std=np.std(X_train, axis=(0,1))
+    X_train_variance=X_train_std**2
 
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
@@ -445,10 +446,14 @@ def main(args):
       start_time = time.time()
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
 
+
         inputs, targets = batch
- 	inputs=(inputs-X_train_mean)/X_train_std
+ 	inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
     #this is the forwards pass -> need to time 
-        train_err += train_fn(inputs, targets)
+    
+
+	
+	train_err += train_fn(inputs, targets)
     
         train_batches += 1
         #debugging by adding av_train_err and print training loss
