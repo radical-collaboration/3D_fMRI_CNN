@@ -468,6 +468,7 @@ def main(args):
 
 
 	inputs, targets = batch
+        inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
 	val_err += err
