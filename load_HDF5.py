@@ -34,13 +34,15 @@ def create_dictionary(subject_ID):
 
 def collect_data():
   f=h5py.File('shuffled_output_runs.hdf5','w')
-  grp=f.create_group('individual_TRs')
+  g=h5py.File('shuffled_output_labels.hdf5','w')
+  h=h5py.File('shuffled_output_subjects.hdf5','w')
+  i=h5py.File('shuffled_output_features.hdf5', 'w') 
   
   files=glob.glob('/cstor/xsede/users/xs-jdakka/testing_HDF5/output_data/*.nii')
   import random
   random.shuffle(files)
   print files[:30]
-  labels_array=[]
+  runs, subjects, labels, features  = [], [], [], []
 
   for filename in files:
     img=nb.load(filename) # data shape is [x,y,z, time]
@@ -50,21 +52,29 @@ def collect_data():
     label=split_filename[0]
     TR=split_filename[1]
     
-    subject_ID=split_filename[2]
+    subject=split_filename[2]
     run=split_filename[5]
     run=os.path.basename(run).split('.')
     run=run[0]
-    labels_array.append(label)
-    #rename the original subject_ID to 0-94 instead
+    runs.append(run)
+    labels.append(label)
+    subjects.append(subject)
+    features.append(data)
+
+  dset_runs = f.create_dataset("runs", data=runs)  
+  dset_labels = g.create_dataset("labels", data=labels)
+  dset_subjects = h.create_dataset("subjects", data=subjects)
+  dset_data=i.create_dataset("features", data=features)
+ 
     
-    adict=dict(data=data)
-    grp.create_dataset('%s_%s_%s' % (subject_ID,TR,run) , data=data)
-    f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['subject_ID']=subject_ID
-    f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['label']=label
-    f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['run']=run
+    #adict=dict(data=data)
+    #grp.create_dataset('%s_%s_%s' % (subject_ID,TR,run) , data=data)
+    #f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['subject_ID']=subject_ID
+    #f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['label']=label
+    #f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['run']=run
 
     #collect unique subject_IDs and rename them 0-94
-  print labels_array[:30]
+  
 def load_data():
   """
   Loads the data from HDF5. 
@@ -79,9 +89,16 @@ def load_data():
   """
   
   f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs.hdf5','r')
-  dataset=f['/individual_TRs']
+  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subject.hdf5','r')
+  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features.hdf5','r')
+ 
   subjects, labels, features, runs  = [], [], [], []
+  
+  labels=g['/labels']
+  print labels[:30]
 
+'''
   for i in dataset.values():
     subjects.append(i.attrs['subject_ID'])
     labels.append(i.attrs['label'])
@@ -102,12 +119,12 @@ def load_data():
   print labels[:30]
   #print subjects.shape
   #print subjects 
-
+'''
 
 #create_dictionary()
 collect_data()
 
-load_data()
+#load_data()
 
 
 
