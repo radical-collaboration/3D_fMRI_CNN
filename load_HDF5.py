@@ -90,7 +90,7 @@ def load_data():
   
   f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs.hdf5','r')
   g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels.hdf5','r')
-  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subject.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects.hdf5','r')
   i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features.hdf5','r')
  
   subjects, labels, features, runs  = [], [], [], []
@@ -122,9 +122,9 @@ def load_data():
 '''
 
 #create_dictionary()
-collect_data()
+#collect_data()
 
-#load_data()
+load_data()
 
 
 

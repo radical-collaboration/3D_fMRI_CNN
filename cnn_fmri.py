@@ -55,41 +55,39 @@ def load_data():
   """
   ##### Load labels
   
-  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/all_output_runs.hdf5','r')
-  dataset=f['/individual_TRs']
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs.hdf5','r')
+  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects.hdf5','r')
+  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features.hdf5','r')
+ 
   subjects, labels, features, runs  = [], [], [], []
  
+  subjects=h['subjects'][()]
+  labels=g['labels'][()]
+  runs=f['runs'][()]
+  features=i['features'][()]
 
-  for i in dataset.values():
-    subjects.append(i.attrs['subject_ID'])
-    labels.append(i.attrs['label'])
-    runs.append(i.attrs['run'])
-    features.append(i[:])
-    
   
-  features_mean=np.mean(features)
-  features_std=np.std(features)
- 
-
-
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
+ 
+  # change labels from -1/1 to 0/1
+  labels = (np.array(labels, dtype=int) == 1).astype(int)
+  #labels[:10] = 1
+  labels = [int(i) for i in labels]
+  labels=np.asarray(labels)
+  
 
+  # change subject_IDs to scale 0-94 
   unique_IDs=[]
   [unique_IDs.append(i) for i in subjects if not unique_IDs.count(i)]
   dictionary_IDs={x:i for i,x  in enumerate(unique_IDs, start=1)}
   
   for i in range(len(subjects)):
     subjects[i]= dictionary_IDs[subjects[i]]
-  
-  
-  features_mean=np.mean(features)
-  features_std=np.std(features)
 
-  #features=(features[:,:,:,:,:]-features_mean)/features_std
-
-
-  return features, np.asarray(labels), np.asarray(subjects), np.asarray(runs)
+  subjects=np.asarray(subjects, dtype=int)
+  return features, labels, subjects, np.asarray(runs)
  
 
 def reformatInput(data, labels, indices):
@@ -97,7 +95,8 @@ def reformatInput(data, labels, indices):
   Receives the the indices for train and test datasets.
   Outputs the train, validation, and test data and label datasets.
   """
-
+  import pdb
+  pdb.set_trace()
   trainIndices = indices[0][len(indices[1]):]
   validIndices = indices[0][:len(indices[1])]
   testIndices = indices[1]
@@ -348,8 +347,10 @@ def main(args):
   # Load the dataset
   print("Loading data...")
   data, labels, subjects, runs  = load_data()
-  print("  mean_features:\t\t{:.6f}".format(np.mean(data)))
-  print("  std_features:\t\t{:.6f}".format(np.std(data)))
+  
+ 
+
+ 
 
   #fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
   sub_nums=subjects
@@ -364,7 +365,7 @@ def main(args):
  
   #need the leave one subject out method
 
-  
+ 
   # Initializing output variables
   validScores, testScores = [], []
   trainLoss = np.zeros((len(fold_pairs), num_epochs))
@@ -384,10 +385,19 @@ def main(args):
     X_train_std=np.std(X_train, axis=(0,1))
     X_train_variance=X_train_std**2
 
+    X_val_mean=np.mean(X_val, axis=(0,1))
+    X_val_std=np.std(X_val,axis=(0,1))
+    X_val_variance=X_val_std**2
+
+    X_test_mean=np.mean(X_test, axis=(0,1))
+    X_test_std=np.std(X_test, axis=(0,1))
+    X_test_variance=X_test_std**2
+
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
     # Create neural network model (depending on first command line parameter)
+
     print("Building model and compiling functions...")
     # Building the appropriate model
     if model == '1dconv':
@@ -445,16 +455,12 @@ def main(args):
       train_batches = 0
       start_time = time.time()
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
-
-
         inputs, targets = batch
  	inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
-    #this is the forwards pass -> need to time 
-    
 
-	
-	train_err += train_fn(inputs, targets)
-    
+
+        #this is the forwards pass -> need to time 
+        train_err += train_fn(inputs, targets)
         train_batches += 1
         #debugging by adding av_train_err and print training loss
 	av_train_err = train_err / train_batches
@@ -465,13 +471,11 @@ def main(args):
       val_acc = 0
       val_batches = 0
       for batch in iterate_minibatches(X_val, y_val, batch_size, shuffle=False):
-
-
 	inputs, targets = batch
-        inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
+        inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
-	val_err += err
+        val_err += err
         val_acc += acc
         val_batches += 1
      
