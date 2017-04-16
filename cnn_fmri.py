@@ -4,7 +4,10 @@ Using 3D convnets to classify fMRI based on cogntive tasks.
 Implementation using Lasagne module.
 Inputs are the 3d fMRI movies.
 """
+
+
 from __future__ import print_function
+
 import numpy as np
 import time
 np.random.seed(1234)
@@ -67,7 +70,8 @@ def load_data():
   runs=f['runs'][()]
   features=i['features'][()]
 
-  
+  import pdb
+  pdb.set_trace()
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
  
@@ -87,19 +91,32 @@ def load_data():
     subjects[i]= dictionary_IDs[subjects[i]]
 
   subjects=np.asarray(subjects, dtype=int)
+
+
   return features, labels, subjects, np.asarray(runs)
  
 
-def reformatInput(data, labels, indices):
+def reformatInput(data, labels, indices, subjects):
   """
   Receives the the indices for train and test datasets.
   Outputs the train, validation, and test data and label datasets.
   """
   import pdb
   pdb.set_trace()
-  trainIndices = indices[0][len(indices[1]):]
-  validIndices = indices[0][:len(indices[1])]
-  testIndices = indices[1]
+ 
+  #trainIndices = indices[0][len(indices[1]):]
+  #validIndices = indices[0][:len(indices[1])]
+  #testIndices = indices[1]
+  
+  trainIndices = indices[0]
+  validIndices = indices[1]
+  testIndices = indices[2]
+  
+  map_train=subjects[trainIndices]
+  map_valid=subjects[validIndices]
+  map_test=subjects[testIndices]
+  set(map_train).intersection(map_valid)
+  
   # Shuffling training data
   # shuffledIndices = np.random.permutation(len(trainIndices))
   # trainIndices = trainIndices[shuffledIndices]
@@ -348,23 +365,25 @@ def main(args):
   print("Loading data...")
   data, labels, subjects, runs  = load_data()
   
- 
+  import pdb
+  pdb.set_trace()
 
- 
+  fold_pairs = []
 
   #fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
+
   sub_nums=subjects
   subs_in_fold = np.ceil(np.max(sub_nums) / float(num_folds))
   
-  fold_pairs = []
-
   for i in range(num_folds):
-    test_ids = np.bitwise_and(sub_nums > subs_in_fold * i, sub_nums < subs_in_fold * (i + 1))
-    train_ids = ~test_ids
-    fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
- 
-  #need the leave one subject out method
-
+  
+    '''
+    for each kfold selects fold window to collect indices for test dataset and the rest becomes train
+    '''
+    test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
+    valid_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i+1), sub_nums < subs_in_fold * (i + 2))
+    train_ids=~ valid_ids ^ test_ids
+    fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(valid_ids)[0], np.nonzero(test_ids)[0]))
  
   # Initializing output variables
   validScores, testScores = [], []
@@ -375,8 +394,10 @@ def main(args):
   for foldNum, fold in enumerate(fold_pairs):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
-    (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold)
-    
+    (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold, subjects)
+    import pdb 
+    pdb.set_trace()
+
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
@@ -424,7 +445,7 @@ def main(args):
 
 
    
-    updates = lasagne.updates.adam(loss, params, learning_rate=0.01)
+    updates = lasagne.updates.adam(loss, params, learning_rate=0.001)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -464,7 +485,7 @@ def main(args):
         train_batches += 1
         #debugging by adding av_train_err and print training loss
 	av_train_err = train_err / train_batches
-        print("  training loss:\t\t{:.6f}".format(av_train_err))
+       # print("  training loss:\t\t{:.6f}".format(av_train_err))
 
       # And a full pass over the validation data:
       val_err = 0
@@ -482,8 +503,8 @@ def main(args):
         #debugging by adding av_val_err and av_val_acc
 	av_val_err = val_err / val_batches
 	av_val_acc = val_acc / val_batches
-        print("  validation loss:\t\t{:.6f}".format(av_val_err))
-	print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+       # print("  validation loss:\t\t{:.6f}".format(av_val_err))
+	#print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
      
       av_train_err = train_err / train_batches
       av_val_err = val_err / val_batches
