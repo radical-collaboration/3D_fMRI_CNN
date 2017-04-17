@@ -58,10 +58,10 @@ def load_data():
   """
   ##### Load labels
   
-  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs.hdf5','r')
-  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels.hdf5','r')
-  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects.hdf5','r')
-  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features.hdf5','r')
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs_masked.hdf5','r')
+  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels_masked.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects_masked.hdf5','r')
+  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features_masked.hdf5','r')
  
   subjects, labels, features, runs  = [], [], [], []
  
@@ -70,8 +70,8 @@ def load_data():
   runs=f['runs'][()]
   features=i['features'][()]
 
-  import pdb
-  pdb.set_trace()
+
+
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
  
@@ -101,8 +101,8 @@ def reformatInput(data, labels, indices, subjects):
   Receives the the indices for train and test datasets.
   Outputs the train, validation, and test data and label datasets.
   """
-  import pdb
-  pdb.set_trace()
+
+
  
   #trainIndices = indices[0][len(indices[1]):]
   #validIndices = indices[0][:len(indices[1])]
@@ -365,8 +365,8 @@ def main(args):
   print("Loading data...")
   data, labels, subjects, runs  = load_data()
   
-  import pdb
-  pdb.set_trace()
+
+
 
   fold_pairs = []
 
@@ -395,8 +395,8 @@ def main(args):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold, subjects)
-    import pdb 
-    pdb.set_trace()
+
+
 
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
@@ -556,6 +556,7 @@ def main(args):
 
 
 if __name__ == '__main__':
+  print("helloworld")
   parser = argparse.ArgumentParser(description='Runs R-CNN on fMRI data.')
   #parser.add_argument('csv_file', metavar='F', type=str,
    #                   help='CSV file containing subject IDs, labels, and filenames.')
@@ -581,3 +582,4 @@ if __name__ == '__main__':
                       help='Number of input (color) channels.',
                       default=DEFAULT_NUM_INPUT_CHANNELS)
   main(parser.parse_args())
+
