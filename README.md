@@ -6,8 +6,10 @@ The objective is to improve classification accuracy in schizophrenia and other c
 
 Requirements: 
 
-**python libraries are included in requirements.txt
+python libraries are included in requirements.txt
+
 cuDNN/5.0-CUDA-7.5.18
+
 Theano/0.8.2-Python-2.7.9-noMPI configured to run on GPU to enable Conv3DDNNLayer from lasagne.layers.dnn
 
 Command: 
