@@ -7,7 +7,7 @@ Inputs are the 3d fMRI movies.
 
 
 from __future__ import print_function
-
+import sys
 import numpy as np
 import time
 np.random.seed(1234)
@@ -31,15 +31,22 @@ filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file conta
 
 # Training parameters
 DEFAULT_NUM_EPOCHS = 10  # Number of epochs for training
-DEFAULT_BATCH_SIZE = 2  # Number of samples in each batch
+DEFAULT_BATCH_SIZE = 30  # Number of samples in each batch
 DEFAULT_NUM_CLASS = 2  # Number of classes
 DEFAULT_GRAD_CLIP = 100  # Clipping value for gradient clipping in LSTM
 DEFAULT_NUM_INPUT_CHANNELS= 1      # Leave this to be 1 (this is a filler dimension for the number of colors)
 DEFAULT_MODEL = 'mix'  # Model type selection ['1dconv', 'maxpool', 'lstm', 'mix']
-DEFAULT_NUM_FOLDS = 5   # Default number of folds in cross validation
+DEFAULT_NUM_FOLDS = 10   # Default number of folds in cross validation
 
 
-# ##################### Build the neural network model #######################
+
+
+
+
+
+
+ 
+ ##################### Build the neural network model #######################
 # This script supports three types of models. For each one, we define a
 # function that takes a Theano variable representing the input and returns
 # the output layer of a neural network model built in Lasagne.
@@ -58,10 +65,10 @@ def load_data():
   """
   ##### Load labels
   
-  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs_masked.hdf5','r')
-  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels_masked.hdf5','r')
-  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects_masked.hdf5','r')
-  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features_masked.hdf5','r')
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs.hdf5','r')
+  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects.hdf5','r')
+  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features.hdf5','r')
  
   subjects, labels, features, runs  = [], [], [], []
  
@@ -107,7 +114,8 @@ def reformatInput(data, labels, indices, subjects):
   #trainIndices = indices[0][len(indices[1]):]
   #validIndices = indices[0][:len(indices[1])]
   #testIndices = indices[1]
-  
+  import pdb
+  pdb.set_trace()
   trainIndices = indices[0]
   validIndices = indices[1]
   testIndices = indices[2]
@@ -350,24 +358,24 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 
 # ############################## Main program ################################
 def main(args):
+   
   global num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels
+  #print num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels
+  
   #filename = args.csv_file
-  num_epochs = args.num_epochs
-  batch_size = args.batch_size
-  num_folds = args.num_folds
-  num_classes = args.num_classes
-  grad_clip = args.grad_clip
+  num_epochs = int(args.num_epochs)
+  batch_size = int(args.batch_size)
+  num_folds = int(args.num_folds)
+  num_classes = int(args.num_classes)
+  grad_clip = int(args.grad_clip)
   model = args.model
-  num_input_channels = args.num_input_channels
-
+  num_input_channels = int(args.num_input_channels)
+  
   print('Model type is : {0}'.format(model))
   # Load the dataset
   print("Loading data...")
-  data, labels, subjects, runs  = load_data()
   
-
-
-
+  data, labels, subjects, runs  = load_data()
   fold_pairs = []
 
   #fold_pairs = StratifiedKFold(labels, n_folds=num_folds, shuffle=False)
@@ -510,11 +518,14 @@ def main(args):
       av_val_err = val_err / val_batches
       av_val_acc = val_acc / val_batches
       # Then we print the results for this epoch:
+      
       print("Epoch {} of {} took {:.3f}s".format(
         epoch + 1, num_epochs, time.time() - start_time))
       print("  training loss:\t\t{:.6f}".format(av_train_err))
       print("  validation loss:\t\t{:.6f}".format(av_val_err))
       print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+      
+      sys.stdout.flush()
 
       trainLoss[foldNum, epoch] = av_train_err
       validLoss[foldNum, epoch] = av_val_err
@@ -539,7 +550,10 @@ def main(args):
         print("Final results:")
         print("  test loss:\t\t\t{:.6f}".format(av_test_err))
         print("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-        # Dump the network weights to a file like this:
+      
+        sys.stdout.flush()
+      
+      # Dump the network weights to a file like this:
         np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
     validScores.append(best_validation_accu * 100)
     testScores.append(av_test_acc * 100)
@@ -556,7 +570,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-  print("helloworld")
+ 
   parser = argparse.ArgumentParser(description='Runs R-CNN on fMRI data.')
   #parser.add_argument('csv_file', metavar='F', type=str,
    #                   help='CSV file containing subject IDs, labels, and filenames.')
