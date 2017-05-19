@@ -35,7 +35,7 @@ DEFAULT_BATCH_SIZE = 30  # Number of samples in each batch
 DEFAULT_NUM_CLASS = 2  # Number of classes
 DEFAULT_GRAD_CLIP = 100  # Clipping value for gradient clipping in LSTM
 DEFAULT_NUM_INPUT_CHANNELS= 1      # Leave this to be 1 (this is a filler dimension for the number of colors)
-DEFAULT_MODEL = 'mix'  # Model type selection ['1dconv', 'maxpool', 'lstm', 'mix']
+DEFAULT_MODEL = 'mix'  # Model type selection ['1dconv', 'maxpool', 'lstm', 'mix', 'lstm2']
 DEFAULT_NUM_FOLDS = 10   # Default number of folds in cross validation
 
  
@@ -58,10 +58,10 @@ def load_data():
   """
   ##### Load labels
   
-  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs.hdf5','r')
-  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels.hdf5','r')
-  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects.hdf5','r')
-  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features.hdf5','r')
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_runs.hdf5','r')
+  g=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_labels.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_subjects.hdf5','r')
+  i=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_features.hdf5','r')
  
   subjects, labels, features, runs  = [], [], [], []
  
@@ -105,8 +105,8 @@ def reformatInput(data, labels, indices, subjects):
   #trainIndices = indices[0][len(indices[1]):]
   #validIndices = indices[0][:len(indices[1])]
   #testIndices = indices[1]
-  import pdb
-  pdb.set_trace()
+  
+
   trainIndices = indices[0]
   validIndices = indices[1]
   testIndices = indices[2]
@@ -155,6 +155,7 @@ def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(4, 2, 1),
   if W_init is None:
     W_init = [lasagne.init.GlorotUniform()] * sum(n_layers)
   # Input layer
+
   network = InputLayer(shape=(None, num_input_channels, input_shape[-3], input_shape[-2], input_shape[-1]),
                        input_var=input_var)
 
@@ -163,7 +164,6 @@ def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(4, 2, 1),
       network = ConvLayer3D(network, num_filters=n_filters_first * (2 ** i), filter_size=(3, 3, 3),
                             W=W_init[count], pad='same')
     
-   
       count += 1
       weights.append(network.W)
     network = MaxPoolLayer3D(network, pool_size=2)
@@ -243,6 +243,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
   :param input_vars: list of EEG images (one image per time window)
   :return: a pointer to the output of last layer
   """
+
   convnets = []
   W_init = None
   # Build 7 parallel CNNs with shared weights
@@ -252,11 +253,14 @@ def build_convpool_lstm(input_vars, input_shape=None):
     else:
       convnet, _ = build_cnn(input_vars[i], input_shape, W_init)
     convnets.append(FlattenLayer(convnet))
+  import pdb
+  pdb.set_trace()
+  
   # at this point convnets shape is [numTimeWin][n_samples, features]
   # we want the shape to be [n_samples, features, numTimeWin]
   convpool = ConcatLayer(convnets)
   # convpool = ReshapeLayer(convpool, ([0], -1, numTimeWin))
-
+  
   convpool = ReshapeLayer(convpool, ([0], input_shape[0], get_output_shape(convnets[0])[1]))
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
   convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip,
@@ -278,39 +282,32 @@ def build_convpool_lstm(input_vars, input_shape=None):
   return convpool
 
 def build_lstm(input_vars, input_shape=None):
-  """
-  Builds the complete network with LSTM layer to integrate time from sequences of EEG images.
-  :param input_vars: list of EEG images (one image per time window)
-  :return: a pointer to the output of last layer
-  """
-'''
-  convnets = []
-  W_init = None
-  # Build 7 parallel CNNs with shared weights
- 
-  for i in range(input_shape[0]):
-    if i == 0:
-      convnet, W_init = build_cnn(input_vars[i], input_shape)
-    else:
-      convnet, _ = build_cnn(input_vars[i], input_shape, W_init)
-    convnets.append(FlattenLayer(convnet))
-  # at this point convnets shape is [numTimeWin][n_samples, features]
-  # we want the shape to be [n_samples, features, numTimeWin]
-  convpool = ConcatLayer(convnets)
-  # convpool = ReshapeLayer(convpool, ([0], -1, numTimeWin))
 
-  convpool = ReshapeLayer(input_vars, ([0], input_shape[0], get_output_shape(convnets[0])[1]))
+  ''' 
+  1) InputLayer
+  2) ReshapeLayer
+  3) LSTM Layer 1
+  4) LSTM Layer 2
+  5) Fully Connected Layer 1 w/ dropout tanh
+  6) Fully Connected Layer 2 w/ dropout softmax
+  '''
 
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
-  '''
-  l_lstm = LSTMLayer(input_vars, num_units=128, grad_clipping=grad_clip,
-                       nonlinearity=lasagne.nonlinearities.tanh)
+  
+  network = InputLayer(shape=(None, num_input_channels, input_shape[-3], input_shape[-2], input_shape[-1]),
+                      input_var=None)
+  
 
+  network = ReshapeLayer(network, ([0], -1, 2496))
+  
+  #network = ReshapeLayer(network, (-1, 128))
+  #l_inp = InputLayer((None, None, num_inputs))
+  
+  l_lstm1 = LSTMLayer(network, num_units=128, grad_clipping=grad_clip,
+                      nonlinearity=lasagne.nonlinearities.tanh)
   #New LSTM
-
-  l_lstm = LSTMLayer(l_lstm, num_units=128, grad_clipping=grad_clip,
+  l_lstm2 = LSTMLayer(l_lstm1, num_units=128, grad_clipping=grad_clip,
                        nonlinearity=lasagne.nonlinearities.tanh)
-
   #end of insertion 
 
   # After LSTM layer you either need to reshape or slice it (depending on whether you
@@ -320,10 +317,10 @@ def build_lstm(input_vars, input_shape=None):
 
   #convpool = SliceLayer(convpool, -1, 1)  # Selecting the last prediction
 
-  l_shp = ReshapeLayer(l_lstm, ([0], input_shape[0], get_output_shape(convnets[0])[1]))
+  #l_shp = ReshapeLayer(second_l_lstm, ([0], input_shape[0], get_output_shape(convnets[0])[1]))
 
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
-  l_dense = DenseLayer(lasagne.layers.dropout(l_shp, p=.5),
+  l_dense = DenseLayer(lasagne.layers.dropout(l_lstm2, p=.5),
                         num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
@@ -456,7 +453,7 @@ def main(args):
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
-    
+    '''
     X_train_mean=np.mean(X_train, axis=(0,1))
     X_train_std=np.std(X_train, axis=(0,1))
     X_train_variance=X_train_std**2
@@ -468,7 +465,7 @@ def main(args):
     X_test_mean=np.mean(X_test, axis=(0,1))
     X_test_std=np.std(X_test, axis=(0,1))
     X_test_variance=X_test_std**2
-
+    '''
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
@@ -484,7 +481,8 @@ def main(args):
       network = build_convpool_lstm(input_var, X_train.shape)
     elif model == 'mix':
       network = build_convpool_mix(input_var, X_train.shape)
-
+    elif model == 'lstm2':
+      network = build_lstm(input_var, X_train.shape)
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
@@ -548,7 +546,7 @@ def main(args):
       val_batches = 0
       for batch in iterate_minibatches(X_val, y_val, batch_size, shuffle=False):
 	inputs, targets = batch
-        inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
+       # inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
         val_err += err
@@ -637,7 +635,7 @@ if __name__ == '__main__':
                       help='Grad-clip parameter for LSTM.',
                       default=DEFAULT_GRAD_CLIP)
   parser.add_argument('--model', dest='model', type=str,
-                      help='Model type (1dconv, maxpool, lstm, mix).',
+                      help='Model type (1dconv, maxpool, lstm, mix, lstm2).',
                       default=DEFAULT_MODEL)
   parser.add_argument('--num_input_channels', dest='num_input_channels', type=int,
                       help='Number of input (color) channels.',
