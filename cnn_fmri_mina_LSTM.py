@@ -288,14 +288,20 @@ def build_lstm(input_vars, input_shape=None):
   2) ReshapeLayer
   3) LSTM Layer 1
   4) LSTM Layer 2
-  5) Fully Connected Layer 1 w/ dropout tanh
-  6) Fully Connected Layer 2 w/ dropout softmax
+  5) Slice Layer
+  6) Fully Connected Layer 1 w/ dropout tanh
+  7) Fully Connected Layer 2 w/ dropout softmax
   '''
+
+  import pdb
+  pdb.set_trace()
+
+
 
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
   
   network = InputLayer(shape=(None, num_input_channels, input_shape[-3], input_shape[-2], input_shape[-1]),
-                      input_var=None)
+                      input_vars=None)
   
 
   network = ReshapeLayer(network, ([0], -1, 2496))
@@ -305,6 +311,8 @@ def build_lstm(input_vars, input_shape=None):
   
   l_lstm1 = LSTMLayer(network, num_units=128, grad_clipping=grad_clip,
                       nonlinearity=lasagne.nonlinearities.tanh)
+  
+  
   #New LSTM
   l_lstm2 = LSTMLayer(l_lstm1, num_units=128, grad_clipping=grad_clip,
                        nonlinearity=lasagne.nonlinearities.tanh)
@@ -315,12 +323,10 @@ def build_lstm(input_vars, input_shape=None):
   # http://lasagne.readthedocs.org/en/latest/modules/layers/recurrent.html
   # https://github.com/Lasagne/Recipes/blob/master/examples/lstm_text_generation.py
 
-  #convpool = SliceLayer(convpool, -1, 1)  # Selecting the last prediction
-
-  #l_shp = ReshapeLayer(second_l_lstm, ([0], input_shape[0], get_output_shape(convnets[0])[1]))
+  l_lstm_slice = SliceLayer(l_lstm2, -1, 1)  # Selecting the last prediction
 
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
-  l_dense = DenseLayer(lasagne.layers.dropout(l_lstm2, p=.5),
+  l_dense = DenseLayer(lasagne.layers.dropout(l_lstm_slice, p=.5),
                         num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
@@ -448,7 +454,8 @@ def main(args):
     # Divide the dataset into train, validation and test sets
     (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold, subjects)
 
-
+    import pdb
+    pdb.set_trace()
 
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
@@ -530,7 +537,7 @@ def main(args):
       start_time = time.time()
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
         inputs, targets = batch
- 	inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
+       
 
 
         #this is the forwards pass -> need to time 
@@ -546,7 +553,6 @@ def main(args):
       val_batches = 0
       for batch in iterate_minibatches(X_val, y_val, batch_size, shuffle=False):
 	inputs, targets = batch
-       # inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
         val_err += err
