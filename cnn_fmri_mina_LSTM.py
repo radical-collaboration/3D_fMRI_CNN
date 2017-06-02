@@ -25,6 +25,7 @@ from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
 from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
 from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
 from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
+from lasagne.regularization import regularize_layer_params
 import h5py
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
@@ -293,11 +294,6 @@ def build_lstm(input_vars, input_shape=None):
   7) Fully Connected Layer 2 w/ dropout softmax
   '''
 
-  import pdb
-  pdb.set_trace()
-
-
-
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
   
   network = InputLayer(shape=(None, num_input_channels, input_shape[-3], input_shape[-2], input_shape[-1]),
@@ -309,13 +305,14 @@ def build_lstm(input_vars, input_shape=None):
   #network = ReshapeLayer(network, (-1, 128))
   #l_inp = InputLayer((None, None, num_inputs))
   
-  l_lstm1 = LSTMLayer(network, num_units=128, grad_clipping=grad_clip,
-                      nonlinearity=lasagne.nonlinearities.tanh)
+  l_lstm1 = LSTMLayer(network, num_units=32, grad_clipping=grad_clip,
+                      nonlinearity=lasagne.nonlinearities.sigmoid)
   
-  
+  l_lstm1 = lasagne.layers.dropout(l_lstm1, p=.3)
+
   #New LSTM
-  l_lstm2 = LSTMLayer(l_lstm1, num_units=128, grad_clipping=grad_clip,
-                       nonlinearity=lasagne.nonlinearities.tanh)
+  l_lstm2 = LSTMLayer(l_lstm1, num_units=32, grad_clipping=grad_clip,
+                       nonlinearity=lasagne.nonlinearities.sigmoid)
   #end of insertion 
 
   # After LSTM layer you either need to reshape or slice it (depending on whether you
@@ -325,15 +322,21 @@ def build_lstm(input_vars, input_shape=None):
 
   l_lstm_slice = SliceLayer(l_lstm2, -1, 1)  # Selecting the last prediction
 
+
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
-  l_dense = DenseLayer(lasagne.layers.dropout(l_lstm_slice, p=.5),
+  l_dense = DenseLayer(lasagne.layers.dropout(l_lstm_slice, p =.3), 
                         num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
+
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
 
-  # And, finally, the output layer with 50% dropout on its inputs:
-  l_dense = DenseLayer(lasagne.layers.dropout(l_dense, p=.5),
+  # And, finally, the output layer with 70% dropout on its inputs:
+  l_dense = DenseLayer(lasagne.layers.dropout(l_dense, p=.3),
                         num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+
+  # Penalize l_dense using l2
+  l_dense = regularize_layer_params_weighted(l_dense, l2)
+
   return l_dense
 
 
@@ -494,9 +497,13 @@ def main(args):
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-  
+    
    
     loss = loss.mean()
+    #reg_factor = 1e-3
+    #l2_penalty = regularize_network_params(network, l2) * reg_factor
+    #loss += l2_penalty
+
     # We could add some weight decay as well here, see lasagne.regularization.
 
     # Create update expressions for training, i.e., how to modify the
@@ -514,6 +521,7 @@ def main(args):
     test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
                                                             target_var)
     test_loss = test_loss.mean()
+
     # As a bonus, also create an expression for the classification accuracy:
     test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
                       dtype=theano.config.floatX)
