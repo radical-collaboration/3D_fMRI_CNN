@@ -129,7 +129,7 @@ def reformatInput(data, labels, indices, subjects):
     return [(data[:, trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32),
             np.squeeze(subjects[trainIndices]).astype(np.int32)), 
             (data[:, validIndices], np.squeeze(labels[validIndices]).astype(np.int32),
-            np.squeeze(subject[validIndices]).astype(np.int32)),
+            np.squeeze(subjects[validIndices]).astype(np.int32)),
             (data[:, testIndices], np.squeeze(labels[testIndices]).astype(np.int32),
             np.squeeze(subjects[testIndices]).astype(np.int32))]
 
@@ -460,7 +460,8 @@ def main(args):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train, subject_train), (X_val, y_val, subject_val), (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
-
+    import pdb
+    pdb.set_trace()
 
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
