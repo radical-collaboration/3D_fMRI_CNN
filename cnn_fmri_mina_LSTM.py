@@ -397,10 +397,35 @@ def build_convpool_mix(input_vars, input_shape=None):
 
 # ############################# Batch iterator ###############################
 # Borrowed from Lasagne example
-def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
-  input_len = 1
+def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=False):
   
+  input_len = 1
+  assert input_len == len(targets)
+  indices = np.arange(input_len)
+  np.random.shuffle(indices)
+  indice = np.random.permutation(indices)
+  rand_ind_subject = subject_values[indice]
+  data_ind_subject = inputs[indice]
+  print data_ind_subject.shape
+  rand_ind_timept = np.random.permutation(data[0]-num_steps)
 
+
+  #new batch selection based on Keras model
+  num_steps = 32
+  np.random.seed(123)
+  rand_ind_subject = np.random.permutation(subject_values)
+  rand_ind_timept = np.random.permutation(inputs[0]-num_steps)
+
+  print(rand_ind_subject.shape[0])
+  print(rand_ind_timept.shape[0])
+  batch_count = 0
+  for i in rand_ind_timept:
+    for j in rand_ind_subject:
+
+        x = data[j,i:i+num_steps,:]
+
+'''
+  input_len = 1
   assert input_len == len(targets)
   if shuffle:
     indices = np.arange(input_len)
@@ -411,7 +436,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
     else:
       excerpt = slice(start_idx, start_idx + batchsize)
     yield inputs[:, excerpt], targets[excerpt]
-
+'''
 
 # ############################## Main program ################################
 def main(args):
@@ -547,7 +572,7 @@ def main(args):
       train_batches = 0
       start_time = time.time()
 
-      for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
+      for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
         inputs, targets = batch
        
 
@@ -563,7 +588,7 @@ def main(args):
       val_err = 0
       val_acc = 0
       val_batches = 0
-      for batch in iterate_minibatches(X_val, y_val, batch_size, shuffle=False):
+      for batch in iterate_minibatches(X_val, y_val, subject_val, batch_size, shuffle=False):
 	inputs, targets = batch
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
