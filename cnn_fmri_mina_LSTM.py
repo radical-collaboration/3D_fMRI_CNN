@@ -126,9 +126,13 @@ def reformatInput(data, labels, indices, subjects):
             (data[testIndices], np.squeeze(labels[testIndices]).astype(np.int32))]  
 	   
   elif data.ndim == 6:
-    return [(data[:, trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32)),
-            (data[:, validIndices], np.squeeze(labels[validIndices]).astype(np.int32)),
-            (data[:, testIndices], np.squeeze(labels[testIndices]).astype(np.int32))]
+    return [(data[:, trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32),
+            np.squeeze(subjects[trainIndices]).astype(np.int32)), 
+            (data[:, validIndices], np.squeeze(labels[validIndices]).astype(np.int32),
+            np.squeeze(subject[validIndices]).astype(np.int32)),
+            (data[:, testIndices], np.squeeze(labels[testIndices]).astype(np.int32),
+            np.squeeze(subjects[testIndices]).astype(np.int32))]
+
 
 
 def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(4, 2, 1), n_filters_first=32, imSize=32, n_colors=1):
@@ -394,7 +398,7 @@ def build_convpool_mix(input_vars, input_shape=None):
 # ############################# Batch iterator ###############################
 # Borrowed from Lasagne example
 def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
-  input_len = inputs.shape[1]
+  input_len = 1
   
 
   assert input_len == len(targets)
@@ -455,10 +459,8 @@ def main(args):
   for foldNum, fold in enumerate(fold_pairs):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
-    (X_train, y_train), (X_val, y_val), (X_test, y_test) = reformatInput(data, labels, fold, subjects)
+    (X_train, y_train, subject_train), (X_val, y_val, subject_val), (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
 
-    import pdb
-    pdb.set_trace()
 
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
@@ -543,6 +545,7 @@ def main(args):
       train_err = 0
       train_batches = 0
       start_time = time.time()
+
       for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=False):
         inputs, targets = batch
        
