@@ -108,26 +108,18 @@ def load_data_split_frames(list_subject_ID, list_labels):
         frame_count = 0
         if label == -1:
           
-                subject_ID_string = parse_filename_storing(filename)
-                frames = nb.Nifti1Image(frames, affine=np.eye(4))
-                subject_ID_string = parse_filename_storing(filename)
-                string_name = str(label) + '_' + str(frame_count) + '_' + subject_ID_string
-                nb.save(frames, os.path.join('/cstor/xsede/users/xs-jdakka/mina_standardized_lpf/normal', string_name))
-                frame_count = frame_count + 1
+            subject_ID_string = parse_filename_storing(filename)
+            frames = nb.Nifti1Image(frames, affine=np.eye(4))
+            subject_ID_string = parse_filename_storing(filename)
+            string_name = str(label) + '_' + subject_ID_string
+            nb.save(frames, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/normal', string_name))
+            
 
         if label == 1:
-            while i < total_frames:
-                frames = img.dataobj[..., i:i + interval]
-                i = i + interval / 2
-                # print frame_count
-
-                '''storing the collection of frames in format: label(1=normal, -1 schizophrenic)_framecount(0-27)_subjectID'''
-
-                frames = nb.Nifti1Image(frames, affine=np.eye(4))
-                subject_ID_string = parse_filename_storing(filename)
-                string_name = str(label) + '_' + str(frame_count) + '_' + subject_ID_string
-                nb.save(frames, os.path.join('/cstor/xsede/users/xs-jdakka/mina_standardized_lpf/schizophrenic', string_name))
-                frame_count = frame_count + 1
+            
+            subject_ID_string = parse_filename_storing(filename)
+            string_name = str(label) + '_' + subject_ID_string
+            nb.save(frames, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/schizophrenic', string_name))
 
 
 def main():
