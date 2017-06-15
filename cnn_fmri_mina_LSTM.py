@@ -59,10 +59,10 @@ def load_data():
   """
   ##### Load labels
   
-  f=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_runs.hdf5','r')
-  g=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_labels.hdf5','r')
-  h=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_subjects.hdf5','r')
-  i=h5py.File('/cstor/xsede/users/xs-jdakka/mina_standardized_nonlpf/shuffled_output_features.hdf5','r')
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_runs.hdf5','r')
+  g=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_labels.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_subjects.hdf5','r')
+  i=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_features.hdf5','r')
  
   subjects, labels, features, runs  = [], [], [], []
  
@@ -397,7 +397,7 @@ def build_convpool_mix(input_vars, input_shape=None):
 # ############################# Batch iterator ###############################
 # Borrowed from Lasagne example
 def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=False):
-  
+  num_steps = 32
   input_len = inputs.shape[1]
   X = []
   #Y = []
@@ -583,13 +583,11 @@ def main(args):
       for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
         inputs, targets = batch
        
-
-
         #this is the forwards pass -> need to time 
         train_err += train_fn(inputs, targets)
         train_batches += 1
         #debugging by adding av_train_err and print training loss
-	av_train_err = train_err / train_batches
+	      av_train_err = train_err / train_batches
        # print("  training loss:\t\t{:.6f}".format(av_train_err))
 
       # And a full pass over the validation data:
