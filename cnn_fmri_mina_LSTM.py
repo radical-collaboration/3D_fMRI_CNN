@@ -258,8 +258,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
     else:
       convnet, _ = build_cnn(input_vars[i], input_shape, W_init)
     convnets.append(FlattenLayer(convnet))
-  import pdb
-  pdb.set_trace()
+  
   
   # at this point convnets shape is [numTimeWin][n_samples, features]
   # we want the shape to be [n_samples, features, numTimeWin]
