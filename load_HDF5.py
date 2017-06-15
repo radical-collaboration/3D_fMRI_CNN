@@ -12,7 +12,7 @@ import h5py
 import numpy as np
 
 
-path='/cstor/xsede/users/xs-jdakka/testing_HDF5/output_data/'
+path = '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/output_data' 
 
 
 
@@ -38,8 +38,10 @@ def collect_data():
   h=h5py.File('shuffled_output_subjects.hdf5','w')
   i=h5py.File('shuffled_output_features.hdf5', 'w') 
   
-  files=glob.glob('/cstor/xsede/users/xs-jdakka/testing_HDF5/output_data/*.nii')
+  files=glob.glob('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/output_data/*.nii')
   import random
+  SEED = 5
+  random.seed(SEED) 
   random.shuffle(files)
   print files[:30]
   runs, subjects, labels, features  = [], [], [], []
@@ -47,13 +49,14 @@ def collect_data():
   for filename in files:
     img=nb.load(filename) # data shape is [x,y,z, time]
     data=img.get_data()
-    
+    #-1_000353528637_0003_AO_2.nii
+
     split_filename=os.path.basename(filename).split('_')
     label=split_filename[0]
     TR=split_filename[1]
     
     subject=split_filename[2]
-    run=split_filename[5]
+    run=split_filename[4]
     run=os.path.basename(run).split('.')
     run=run[0]
     runs.append(run)
@@ -88,10 +91,10 @@ def load_data():
   data: array_like
   """
   
-  f=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_runs.hdf5','r')
-  g=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_labels.hdf5','r')
-  h=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_subjects.hdf5','r')
-  i=h5py.File('/cstor/xsede/users/xs-jdakka/testing_HDF5/shuffled_output_features.hdf5','r')
+  f=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_runs.hdf5','r')
+  g=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_labels.hdf5','r')
+  h=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_subjects.hdf5','r')
+  i=h5py.File('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/shuffled_output_features.hdf5','r')
  
   subjects, labels, features, runs  = [], [], [], []
   
@@ -122,7 +125,7 @@ def load_data():
 '''
 
 #create_dictionary()
-#collect_data()
+collect_data()
 
 load_data()
 
