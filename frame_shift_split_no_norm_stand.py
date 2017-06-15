@@ -98,7 +98,7 @@ def return_label(list_subject_ID, list_labels, subject_ID):
 
 
 def load_data_split_frames(list_subject_ID, list_labels):
-    for filename in glob.glob(os.path.join(path, '*_2.nii.gz')):
+    for filename in glob.glob(os.path.join(path, '*_3.nii.gz')):
         img = nb.load(filename)
         subject_ID = parse_filename(filename)
         label = return_label(list_subject_ID, list_labels, subject_ID)
@@ -109,17 +109,17 @@ def load_data_split_frames(list_subject_ID, list_labels):
         if label == -1:
           
             subject_ID_string = parse_filename_storing(filename)
-            frames = nb.Nifti1Image(frames, affine=np.eye(4))
+            #frames = nb.Nifti1Image(frames, affine=np.eye(4))
             subject_ID_string = parse_filename_storing(filename)
             string_name = str(label) + '_' + subject_ID_string
-            nb.save(frames, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/normal', string_name))
+            nb.save(img, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/normal', string_name))
             
 
         if label == 1:
             
             subject_ID_string = parse_filename_storing(filename)
             string_name = str(label) + '_' + subject_ID_string
-            nb.save(frames, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/schizophrenic', string_name))
+            nb.save(img, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/schizophrenic', string_name))
 
 
 def main():
