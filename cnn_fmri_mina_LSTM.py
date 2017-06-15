@@ -398,12 +398,11 @@ def build_convpool_mix(input_vars, input_shape=None):
 # Borrowed from Lasagne example
 def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=False):
   
+  input_len = inputs.shape[1]
   X = []
   #Y = []
   L = []
-  input_len = 1
   assert input_len == len(targets)
-  #figure out what this value is
   indices = np.arange(input_len)
   #shuffles index for collecting all subject indices 
   indices = np.random.permutation(indices) 
@@ -429,11 +428,10 @@ def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=Fals
       batch_count += 1
       if batch_count == batchsize:
         batch_count = 0 
+        yield(np.asarray(X), np.asarray(L))
         X = []
         Y = []
         L = []
-        yield(np.asarray(X), np.asarray(L))
-
 '''
   input_len = 1
   assert input_len == len(targets)
