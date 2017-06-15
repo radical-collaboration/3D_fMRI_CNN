@@ -399,30 +399,41 @@ def build_convpool_mix(input_vars, input_shape=None):
 # Borrowed from Lasagne example
 def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=False):
   
+  X = []
+  #Y = []
+  L = []
   input_len = 1
   assert input_len == len(targets)
+  #figure out what this value is
   indices = np.arange(input_len)
-  np.random.shuffle(indices)
-  indice = np.random.permutation(indices)
-  rand_ind_subject = subject_values[indice]
-  data_ind_subject = inputs[indice]
-  print data_ind_subject.shape
-  rand_ind_timept = np.random.permutation(data[0]-num_steps)
-
-
-  #new batch selection based on Keras model
-  num_steps = 32
-  np.random.seed(123)
-  rand_ind_subject = np.random.permutation(subject_values)
+  #shuffles index for collecting all subject indices 
+  indices = np.random.permutation(indices) 
+  indices_subject = np.random.permutation(indices)  
+  #data indices (timeframes = 137)
   rand_ind_timept = np.random.permutation(inputs[0]-num_steps)
-
-  print(rand_ind_subject.shape[0])
-  print(rand_ind_timept.shape[0])
+  
   batch_count = 0
   for i in rand_ind_timept:
-    for j in rand_ind_subject:
+    for j in indices_subject:
 
-        x = data[j,i:i+num_steps,:]
+      rand_ind_subject = subjects[j]
+      target_ind_subject = targets[j]  
+      #inputs shape = (137,7904,1,12,13,16)
+      data_ind_subject = inputs[:,j,:]
+      
+      x = data_ind_subject[i:i+num_steps,:]
+      #y = data_ind_subject[(i+1):(i+1+num_steps),:]
+      X.append(x)
+      #Y.append(y)
+      L.append(target_ind_subject)
+
+      batch_count += 1
+      if batch_count == batchsize:
+        batch_count = 0 
+        X = []
+        Y = []
+        L = []
+        yield(np.asarray(X), np.asarray(L))
 
 '''
   input_len = 1
