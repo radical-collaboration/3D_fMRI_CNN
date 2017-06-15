@@ -299,19 +299,19 @@ def build_lstm(input_vars, input_shape=None):
 
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
   
-  network = InputLayer(shape=(None, num_input_channels, input_shape[-3], input_shape[-2], input_shape[-1]),
-                      input_vars=None)
-  
+  network = InputLayer(shape=(input_shape[0], None, num_input_channels, input_shape[-3],
+                      input_shape[-2], input_shape[-1]),input_var=input_vars)
 
   network = ReshapeLayer(network, ([0], -1, 2496))
-  
+  network = DimshuffleLayer(network, (1, 0, 2))
+
   #network = ReshapeLayer(network, (-1, 128))
   #l_inp = InputLayer((None, None, num_inputs))
   
   l_lstm1 = LSTMLayer(network, num_units=32, grad_clipping=grad_clip,
                       nonlinearity=lasagne.nonlinearities.sigmoid)
   
-  l_lstm1 = lasagne.layers.dropout(l_lstm1, p=.3)
+  #l_lstm1 = lasagne.layers.dropout(l_lstm1, p=.3)
 
   #New LSTM
   l_lstm2 = LSTMLayer(l_lstm1, num_units=32, grad_clipping=grad_clip,
@@ -338,7 +338,7 @@ def build_lstm(input_vars, input_shape=None):
                         num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
 
   # Penalize l_dense using l2
-  l_dense = regularize_layer_params_weighted(l_dense, l2)
+  #l_dense = regularize_layer_params_weighted(l_dense, l2)
 
   return l_dense
 
