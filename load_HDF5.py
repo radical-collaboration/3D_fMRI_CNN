@@ -10,7 +10,7 @@ import random
 import csv
 import h5py 
 import numpy as np
-
+import pdb
 
 path = '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/output_data' 
 
@@ -41,6 +41,7 @@ def collect_data():
   files=glob.glob('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/output_data/*.nii')
   import random
   SEED = 5
+  pdb.set_trace()
   random.seed(SEED) 
   random.shuffle(files)
   print files[:30]
@@ -53,9 +54,9 @@ def collect_data():
 
     split_filename=os.path.basename(filename).split('_')
     label=split_filename[0]
-    TR=split_filename[1]
+    #TR=split_filename[1]
     
-    subject=split_filename[2]
+    subject=split_filename[1]
     run=split_filename[4]
     run=os.path.basename(run).split('.')
     run=run[0]
@@ -125,7 +126,7 @@ def load_data():
 '''
 
 #create_dictionary()
-collect_data()
+#collect_data()
 
 load_data()
 
