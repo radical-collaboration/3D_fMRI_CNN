@@ -27,6 +27,7 @@ from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
 from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
 from lasagne.regularization import regularize_layer_params
 import h5py
+import pdb
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
 
@@ -73,7 +74,10 @@ def load_data():
 
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
- 
+  
+  
+  
+
   # change labels from -1/1 to 0/1
   labels = (np.array(labels, dtype=int) == 1).astype(int)
   #labels[:10] = 1
@@ -100,7 +104,8 @@ def reformatInput(data, labels, indices, subjects):
   Receives the the indices for train and test datasets.
   Outputs the train, validation, and test data and label datasets.
   """
-
+  
+  
 
  
   #trainIndices = indices[0][len(indices[1]):]
@@ -397,6 +402,9 @@ def build_convpool_mix(input_vars, input_shape=None):
 # ############################# Batch iterator ###############################
 # Borrowed from Lasagne example
 def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=False):
+  
+  T= 137
+  pdb.set_trace()
   num_steps = 32
   input_len = inputs.shape[1]
   X = []
@@ -408,13 +416,13 @@ def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=Fals
   indices = np.random.permutation(indices) 
   indices_subject = np.random.permutation(indices)  
   #data indices (timeframes = 137)
-  rand_ind_timept = np.random.permutation(inputs[0]-num_steps)
+  rand_ind_timept = np.random.permutation(137-num_steps)
   
   batch_count = 0
   for i in rand_ind_timept:
     for j in indices_subject:
 
-      rand_ind_subject = subjects[j]
+      rand_ind_subject = subject_values[j]
       target_ind_subject = targets[j]  
       #inputs shape = (137,7904,1,12,13,16)
       data_ind_subject = inputs[:,j,:]
@@ -493,9 +501,7 @@ def main(args):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train, subject_train), (X_val, y_val, subject_val), (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
-    import pdb
-    pdb.set_trace()
-
+   
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
@@ -587,7 +593,7 @@ def main(args):
         train_err += train_fn(inputs, targets)
         train_batches += 1
         #debugging by adding av_train_err and print training loss
-	      av_train_err = train_err / train_batches
+	av_train_err = train_err / train_batches
        # print("  training loss:\t\t{:.6f}".format(av_train_err))
 
       # And a full pass over the validation data:
