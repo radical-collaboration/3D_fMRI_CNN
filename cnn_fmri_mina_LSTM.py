@@ -104,8 +104,6 @@ def reformatInput(data, labels, indices, subjects):
   Receives the the indices for train and test datasets.
   Outputs the train, validation, and test data and label datasets.
   """
-  
-  
 
  
   #trainIndices = indices[0][len(indices[1]):]
@@ -279,6 +277,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
   # http://lasagne.readthedocs.org/en/latest/modules/layers/recurrent.html
   # https://github.com/Lasagne/Recipes/blob/master/examples/lstm_text_generation.py
   convpool = SliceLayer(convpool, -1, 1)  # Selecting the last prediction
+
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
   convpool = DenseLayer(lasagne.layers.dropout(convpool, p=.5),
                         num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
@@ -316,10 +315,10 @@ def build_lstm(input_vars, input_shape=None):
   l_lstm1 = LSTMLayer(network, num_units=32, grad_clipping=grad_clip,
                       nonlinearity=lasagne.nonlinearities.sigmoid)
   
-  #l_lstm1 = lasagne.layers.dropout(l_lstm1, p=.3)
+  l_lstm_dropout = lasagne.layers.dropout(l_lstm1, p=.3)
 
   #New LSTM
-  l_lstm2 = LSTMLayer(l_lstm1, num_units=32, grad_clipping=grad_clip,
+  l_lstm2 = LSTMLayer(l_lstm_dropout, num_units=32, grad_clipping=grad_clip,
                        nonlinearity=lasagne.nonlinearities.sigmoid)
   #end of insertion 
 
@@ -328,12 +327,12 @@ def build_lstm(input_vars, input_shape=None):
   # http://lasagne.readthedocs.org/en/latest/modules/layers/recurrent.html
   # https://github.com/Lasagne/Recipes/blob/master/examples/lstm_text_generation.py
 
+
   l_lstm_slice = SliceLayer(l_lstm2, -1, 1)  # Selecting the last prediction
 
 
-  # A fully-connected layer of 256 units with 50% dropout on its inputs:
-  l_dense = DenseLayer(lasagne.layers.dropout(l_lstm_slice, p =.3), 
-                        num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
+  # A fully-connected layer of 256 units with 50% dropout on its inputs (changed):
+  l_dense = DenseLayer(l_lstm_slice, num_units=1, nonlinearity=lasagne.nonlinearities.rectify)
 
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
@@ -543,9 +542,9 @@ def main(args):
     
    
     loss = loss.mean()
-    reg_factor = 1e-3
-    l2_penalty = regularize_network_params(network, l2) * reg_factor
-    loss += l2_penalty
+    reg_factor = 0.01
+    l1_penalty = regularize_network_params(network, l1) * reg_factor
+    loss += l1_penalty
 
     # We could add some weight decay as well here, see lasagne.regularization.
 
@@ -555,7 +554,7 @@ def main(args):
 
 
    
-    updates = lasagne.updates.adam(loss, params, learning_rate=0.001)
+    updates = lasagne.updates.adam(loss, params, learning_rate=0.1)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
