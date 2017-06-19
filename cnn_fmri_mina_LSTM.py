@@ -25,7 +25,7 @@ from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
 from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
 from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
 from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
-from lasagne.regularization import regularize_layer_params
+from lasagne.regularization import *
 import h5py
 import pdb
 
@@ -404,7 +404,7 @@ def build_convpool_mix(input_vars, input_shape=None):
 def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=False):
   
   T= 137
-  pdb.set_trace()
+ 
   num_steps = 32
   input_len = inputs.shape[1]
   X = []
@@ -425,18 +425,19 @@ def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=Fals
       rand_ind_subject = subject_values[j]
       target_ind_subject = targets[j]  
       #inputs shape = (137,7904,1,12,13,16)
-      data_ind_subject = inputs[:,j,:]
+      data_ind_subject = inputs[:,j]
       
-      x = data_ind_subject[i:i+num_steps,:]
+      x = data_ind_subject[i:i+num_steps]
       #y = data_ind_subject[(i+1):(i+1+num_steps),:]
       X.append(x)
+     
       #Y.append(y)
       L.append(target_ind_subject)
 
       batch_count += 1
       if batch_count == batchsize:
         batch_count = 0 
-        yield(np.asarray(X), np.asarray(L))
+        yield(np.transpose(np.array(X),[1,0,2,3,4,5]), np.asarray(L))
         X = []
         Y = []
         L = []
@@ -505,7 +506,7 @@ def main(args):
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
-    '''
+    
     X_train_mean=np.mean(X_train, axis=(0,1))
     X_train_std=np.std(X_train, axis=(0,1))
     X_train_variance=X_train_std**2
@@ -517,7 +518,7 @@ def main(args):
     X_test_mean=np.mean(X_test, axis=(0,1))
     X_test_std=np.std(X_test, axis=(0,1))
     X_test_variance=X_test_std**2
-    '''
+   
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
@@ -542,9 +543,9 @@ def main(args):
     
    
     loss = loss.mean()
-    #reg_factor = 1e-3
-    #l2_penalty = regularize_network_params(network, l2) * reg_factor
-    #loss += l2_penalty
+    reg_factor = 1e-3
+    l2_penalty = regularize_network_params(network, l2) * reg_factor
+    loss += l2_penalty
 
     # We could add some weight decay as well here, see lasagne.regularization.
 
@@ -587,8 +588,9 @@ def main(args):
       start_time = time.time()
 
       for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
+	
         inputs, targets = batch
-       
+        inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
         #this is the forwards pass -> need to time 
         train_err += train_fn(inputs, targets)
         train_batches += 1
@@ -602,6 +604,7 @@ def main(args):
       val_batches = 0
       for batch in iterate_minibatches(X_val, y_val, subject_val, batch_size, shuffle=False):
 	inputs, targets = batch
+        inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
         val_err += err
@@ -638,8 +641,9 @@ def main(args):
         test_err = 0
         test_acc = 0
         test_batches = 0
-        for batch in iterate_minibatches(X_test, y_test, batch_size, shuffle=False):
+        for batch in iterate_minibatches(X_test, y_test, subject_test, batch_size, shuffle=False):
           inputs, targets = batch
+          inputs=(inputs-X_test_mean)/(0.001+X_test_variance)
           err, acc = val_fn(inputs, targets)
           test_err += err
           test_acc += acc
