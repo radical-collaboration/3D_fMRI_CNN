@@ -270,8 +270,19 @@ def build_convpool_lstm(input_vars, input_shape=None):
   
   convpool = ReshapeLayer(convpool, ([0], input_shape[0], get_output_shape(convnets[0])[1]))
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
-  convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip,
-                       nonlinearity=lasagne.nonlinearities.tanh)
+  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip,
+                       nonlinearity=lasagne.nonlinearities.sigmoid)
+
+
+  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip,
+                       nonlinearity=lasagne.nonlinearities.sigmoid)
+
+  convpool = lasagne.layers.dropout(convpool, p=.3)
+
+
+  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip,
+                       nonlinearity=lasagne.nonlinearities.sigmoid)
+
   # After LSTM layer you either need to reshape or slice it (depending on whether you
   # want to keep all predictions or just the last prediction.
   # http://lasagne.readthedocs.org/en/latest/modules/layers/recurrent.html
@@ -279,14 +290,13 @@ def build_convpool_lstm(input_vars, input_shape=None):
   convpool = SliceLayer(convpool, -1, 1)  # Selecting the last prediction
 
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
-  convpool = DenseLayer(lasagne.layers.dropout(convpool, p=.5),
-                        num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
+  convpool = DenseLayer(convpool, num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
 
   # And, finally, the output layer with 50% dropout on its inputs:
-  convpool = DenseLayer(lasagne.layers.dropout(convpool, p=.5),
-                        num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  convpool = DenseLayer(convpool, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  
   return convpool
 
 def build_lstm(input_vars, input_shape=None):
@@ -312,13 +322,13 @@ def build_lstm(input_vars, input_shape=None):
   #network = ReshapeLayer(network, (-1, 128))
   #l_inp = InputLayer((None, None, num_inputs))
   
-  l_lstm1 = LSTMLayer(network, num_units=64, grad_clipping=grad_clip,
+  l_lstm1 = LSTMLayer(network, num_units=32, grad_clipping=grad_clip,
                       nonlinearity=lasagne.nonlinearities.sigmoid)
   
   l_lstm_dropout = lasagne.layers.dropout(l_lstm1, p=.3)
 
   #New LSTM
-  l_lstm2 = LSTMLayer(l_lstm_dropout, num_units=64, grad_clipping=grad_clip,
+  l_lstm2 = LSTMLayer(l_lstm_dropout, num_units=32, grad_clipping=grad_clip,
                        nonlinearity=lasagne.nonlinearities.sigmoid)
   #end of insertion 
 
