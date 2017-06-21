@@ -516,16 +516,29 @@ def main(args):
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
     
-    X_train_mean=np.mean(X_train, axis=(0,1))
-    X_train_std=np.std(X_train, axis=(0,1))
+
+    '''reshape X_train, X_val, X_test in dimensions (N,T,V) from (137,samples,dims)'''
+    X_train_axis = X_train.shape[1]
+    X_train = np.reshape([137,X_train_axis, 2496]).swapaxes(0,1)
+    
+    # X_train is now in shape (N,T,V)
+    
+    X_train_mean=np.mean(X_train, axis=(1,2))
+    X_train_std=np.std(X_train, axis=(1,2))
     X_train_variance=X_train_std**2
 
-    X_val_mean=np.mean(X_val, axis=(0,1))
-    X_val_std=np.std(X_val,axis=(0,1))
+    X_val_axis = X_val.shape[1]
+    X_val = np.reshape([137,X_val_axis, 2496]).swapaxes(0,1)
+
+    X_val_mean=np.mean(X_val, axis=(1,2))
+    X_val_std=np.std(X_val,axis=(1,2))
     X_val_variance=X_val_std**2
 
-    X_test_mean=np.mean(X_test, axis=(0,1))
-    X_test_std=np.std(X_test, axis=(0,1))
+    X_test_axis = X_test.shape[1]
+    X_test = np.reshape([137,X_test_axis, 2496]).swapaxes(0,1)
+
+    X_test_mean=np.mean(X_test, axis=(1,2))
+    X_test_std=np.std(X_test, axis=(1,2))
     X_test_variance=X_test_std**2
    
     # Prepare Theano variables for inputs and targets
