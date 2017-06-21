@@ -291,6 +291,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
 
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
   convpool = DenseLayer(convpool, num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
+  
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
 
@@ -322,13 +323,13 @@ def build_lstm(input_vars, input_shape=None):
   #network = ReshapeLayer(network, (-1, 128))
   #l_inp = InputLayer((None, None, num_inputs))
   
-  l_lstm1 = LSTMLayer(network, num_units=32, grad_clipping=grad_clip,
+  l_lstm1 = LSTMLayer(network, num_units=128, grad_clipping=grad_clip,
                       nonlinearity=lasagne.nonlinearities.sigmoid)
   
   l_lstm_dropout = lasagne.layers.dropout(l_lstm1, p=.3)
 
   #New LSTM
-  l_lstm2 = LSTMLayer(l_lstm_dropout, num_units=32, grad_clipping=grad_clip,
+  l_lstm2 = LSTMLayer(l_lstm_dropout, num_units=128, grad_clipping=grad_clip,
                        nonlinearity=lasagne.nonlinearities.sigmoid)
   #end of insertion 
 
