@@ -524,12 +524,14 @@ def main(args):
     X_train_axis = X_train.shape[1]
     #X_train.reshape([137,304,1,2496]) 
     X_train = np.reshape(X_train,[137,X_train_axis, 1, 2496]).swapaxes(0,1)
-    
-    # X_train is now in shape (N,T,V)
-    
     X_train_mean=np.mean(X_train, axis=(1,2))
     X_train_std=np.std(X_train, axis=(1,2))
     X_train_variance=X_train_std**2
+
+    X_train = (X_train-X_train_mean)/(0.001+X_train_variance)
+    # X_train is now in shape (N,T,V)
+    # reshape back to (N,T,1,12,13,16)
+    X_train = np.reshape(X_train,[X_train_axis,137,1,12,13,16]).swapaxes(0,1)
 
     X_val_axis = X_val.shape[1]
     X_val = np.reshape(X_val,[137,X_val_axis,1, 2496]).swapaxes(0,1)
@@ -538,6 +540,11 @@ def main(args):
     X_val_std=np.std(X_val,axis=(1,2))
     X_val_variance=X_val_std**2
 
+    X_val = (X_val-X_val_mean)/(0.001+X_val_variance)
+    # X_val is now in shape (N,T,V)
+    # reshape back to (N,T,1,12,13,16)
+    X_val = np.reshape(X_val,[X_val_axis,137,1,12,13,16]).swapaxes(0,1)
+
     X_test_axis = X_test.shape[1]
     X_test = np.reshape(X_test,[137,X_test_axis,1, 2496]).swapaxes(0,1)
 
@@ -545,6 +552,11 @@ def main(args):
     X_test_std=np.std(X_test, axis=(1,2))
     X_test_variance=X_test_std**2
    
+    X_test = (X_test-X_test_mean)/(0.001+X_test_variance)
+    # X_test is now in shape (N,T,V)
+    # reshape back to (N,T,1,12,13,16)
+    X_test = np.reshape(X_test,[X_test_axis,137,1,12,13,16]).swapaxes(0,1)
+
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
@@ -617,7 +629,7 @@ def main(args):
       for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
 	
         inputs, targets = batch
-        inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
+        #inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
         #this is the forwards pass -> need to time 
         train_err += train_fn(inputs, targets,lr)
         train_batches += 1
