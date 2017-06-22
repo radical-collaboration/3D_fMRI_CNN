@@ -325,13 +325,13 @@ def build_lstm(input_vars, input_shape=None):
   #network = ReshapeLayer(network, (-1, 128))
   #l_inp = InputLayer((None, None, num_inputs))
   
-  l_lstm1 = LSTMLayer(network, num_units=128, grad_clipping=grad_clip,
+  l_lstm1 = LSTMLayer(network, num_units=32, grad_clipping=grad_clip,
                       nonlinearity=lasagne.nonlinearities.sigmoid)
   
   l_lstm_dropout = lasagne.layers.dropout(l_lstm1, p=.3)
 
   #New LSTM
-  l_lstm2 = LSTMLayer(l_lstm_dropout, num_units=128, grad_clipping=grad_clip,
+  l_lstm2 = LSTMLayer(l_lstm_dropout, num_units=32, grad_clipping=grad_clip,
                        nonlinearity=lasagne.nonlinearities.sigmoid)
   #end of insertion 
 
@@ -521,6 +521,8 @@ def main(args):
     #X_train shape = (137, 304, 1, 12, 13, 16)
 
     '''reshape X_train, X_val, X_test in dimensions (N,T,V) from (137,samples,dims)'''
+   
+    '''
     X_train_axis = X_train.shape[1]
     #X_train.reshape([137,304,1,2496]) 
     X_train = np.reshape(X_train,[137,X_train_axis, 1, 2496]).swapaxes(0,1)
@@ -556,6 +558,7 @@ def main(args):
     # X_test is now in shape (N,T,V)
     # reshape back to (N,T,1,12,13,16)
     X_test = np.reshape(X_test,[X_test_axis,137,1,12,13,16]).swapaxes(0,1)
+    '''
 
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
@@ -643,7 +646,7 @@ def main(args):
       val_batches = 0
       for batch in iterate_minibatches(X_val, y_val, subject_val, batch_size, shuffle=False):
 	inputs, targets = batch
-        inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
+        #inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
         val_err += err
@@ -682,7 +685,7 @@ def main(args):
         test_batches = 0
         for batch in iterate_minibatches(X_test, y_test, subject_test, batch_size, shuffle=False):
           inputs, targets = batch
-          inputs=(inputs-X_test_mean)/(0.001+X_test_variance)
+          #inputs=(inputs-X_test_mean)/(0.001+X_test_variance)
           err, acc = val_fn(inputs, targets)
           test_err += err
           test_acc += acc
