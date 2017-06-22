@@ -579,7 +579,7 @@ def main(args):
     # parameters at each training step.
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.scalar(name='learning_rate')
-    updates = lasagne.updates.adam(loss, params, learning_rate, momentum=0.9)
+    updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate, momentum=0.9)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
