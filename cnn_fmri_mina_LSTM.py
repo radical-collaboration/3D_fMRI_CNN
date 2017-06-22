@@ -75,7 +75,9 @@ def load_data():
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),axis=2)  # Add another filler dimension for the samples
   
-  
+  #collect sites 
+
+
   
 
   # change labels from -1/1 to 0/1
@@ -519,7 +521,8 @@ def main(args):
 
     '''reshape X_train, X_val, X_test in dimensions (N,T,V) from (137,samples,dims)'''
     X_train_axis = X_train.shape[1]
-    X_train = np.reshape([137,X_train_axis, 2496]).swapaxes(0,1)
+    #X_train.reshape([137,304,1,2496]) 
+    X_train = np.reshape([137,X_train_axis, 1, 2496]).swapaxes(0,1)
     
     # X_train is now in shape (N,T,V)
     
@@ -528,14 +531,14 @@ def main(args):
     X_train_variance=X_train_std**2
 
     X_val_axis = X_val.shape[1]
-    X_val = np.reshape([137,X_val_axis, 2496]).swapaxes(0,1)
+    X_val = np.reshape([137,X_val_axis,1, 2496]).swapaxes(0,1)
 
     X_val_mean=np.mean(X_val, axis=(1,2))
     X_val_std=np.std(X_val,axis=(1,2))
     X_val_variance=X_val_std**2
 
     X_test_axis = X_test.shape[1]
-    X_test = np.reshape([137,X_test_axis, 2496]).swapaxes(0,1)
+    X_test = np.reshape([137,X_test_axis,1, 2496]).swapaxes(0,1)
 
     X_test_mean=np.mean(X_test, axis=(1,2))
     X_test_std=np.std(X_test, axis=(1,2))
@@ -574,10 +577,8 @@ def main(args):
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step.
     params = lasagne.layers.get_all_params(network, trainable=True)
-
-
-   
-    updates = lasagne.updates.adam(loss, params, learning_rate=0.003)
+    learning_rate = T.scalar(name='learning_rate')
+    updates = lasagne.updates.adam(loss, params, learning_rate, momentum=0.9)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -593,12 +594,14 @@ def main(args):
 
     # Compile a function performing a training step on a mini-batch (by giving
     # the updates dictionary) and returning the corresponding training loss:
-    train_fn = theano.function([input_var, target_var], loss, updates=updates)
+    train_fn = theano.function([input_var, target_var, learning_rate], loss, updates=updates)
 
     # Compile a second function computing the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
   
- 
+    base_lr = 1e-4
+    lr_decay = 0.8
+    
     # Finally, launch the training loop.
     print("Starting training...")
     best_validation_accu = 0
@@ -608,13 +611,14 @@ def main(args):
       train_err = 0
       train_batches = 0
       start_time = time.time()
-
+      lr = base_lr * (lr_decay**epoch)  
+      
       for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
 	
         inputs, targets = batch
         inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
         #this is the forwards pass -> need to time 
-        train_err += train_fn(inputs, targets)
+        train_err += train_fn(inputs, targets,lr)
         train_batches += 1
         #debugging by adding av_train_err and print training loss
 	av_train_err = train_err / train_batches
