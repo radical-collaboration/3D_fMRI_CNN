@@ -521,14 +521,26 @@ def main(args):
     #X_train shape = (137, 304, 1, 12, 13, 16)
 
     '''reshape X_train, X_val, X_test in dimensions (N,T,V) from (137,samples,dims)'''
-   
-    '''
+    """
+    X_train_mean=np.mean(X_train, axis=(0,1))
+    X_train_std=np.std(X_train, axis=(0,1))
+    X_train_variance=X_train_std**2
+
+    X_val_mean=np.mean(X_val, axis=(0,1))
+    X_val_std=np.std(X_val,axis=(0,1))
+    X_val_variance=X_val_std**2
+
+    X_test_mean=np.mean(X_test, axis=(0,1))
+    X_test_std=np.std(X_test, axis=(0,1))
+    X_test_variance=X_test_std**2
+    """
+
     X_train_axis = X_train.shape[1]
     #X_train.reshape([137,304,1,2496]) 
     X_train = np.reshape(X_train,[137,X_train_axis, 1, 2496]).swapaxes(0,1)
-    X_train_mean=np.mean(X_train, axis=(1,2))
-    X_train_std=np.std(X_train, axis=(1,2))
-    X_train_variance=X_train_std**2
+    X_train_mean=np.mean(X_train, axis=(1,2), keepdims=True)
+    X_train_variance=np.var(X_train, axis=(1,2), keepdims=True)
+#    X_train_variance=X_train_std**2
 
     X_train = (X_train-X_train_mean)/(0.001+X_train_variance)
     # X_train is now in shape (N,T,V)
@@ -538,9 +550,9 @@ def main(args):
     X_val_axis = X_val.shape[1]
     X_val = np.reshape(X_val,[137,X_val_axis,1, 2496]).swapaxes(0,1)
 
-    X_val_mean=np.mean(X_val, axis=(1,2))
-    X_val_std=np.std(X_val,axis=(1,2))
-    X_val_variance=X_val_std**2
+    X_val_mean=np.mean(X_val, axis=(1,2), keepdims=True)
+    X_val_variance=np.var(X_val,axis=(1,2), keepdims=True)
+#    X_val_variance=X_val_std**2
 
     X_val = (X_val-X_val_mean)/(0.001+X_val_variance)
     # X_val is now in shape (N,T,V)
@@ -550,16 +562,17 @@ def main(args):
     X_test_axis = X_test.shape[1]
     X_test = np.reshape(X_test,[137,X_test_axis,1, 2496]).swapaxes(0,1)
 
-    X_test_mean=np.mean(X_test, axis=(1,2))
-    X_test_std=np.std(X_test, axis=(1,2))
-    X_test_variance=X_test_std**2
+    X_test_mean=np.mean(X_test, axis=(1,2), keepdims=True)
+    X_test_variance=np.std(X_test, axis=(1,2), keepdims=True)
+#    X_test_variance=X_test_std**2
    
     X_test = (X_test-X_test_mean)/(0.001+X_test_variance)
     # X_test is now in shape (N,T,V)
     # reshape back to (N,T,1,12,13,16)
     X_test = np.reshape(X_test,[X_test_axis,137,1,12,13,16]).swapaxes(0,1)
-    '''
+    
 
+    import pdb; pdb.set_trace()
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
@@ -610,13 +623,13 @@ def main(args):
 
     # Compile a function performing a training step on a mini-batch (by giving
     # the updates dictionary) and returning the corresponding training loss:
-    train_fn = theano.function([input_var, target_var, learning_rate], loss, updates=updates)
+    train_fn = theano.function([input_var, target_var, learning_rate], [loss, learning_rate], updates=updates)
 
     # Compile a second function computing the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
   
-    base_lr = 1e-4
-    lr_decay = 0.8
+    base_lr = 0.1
+    lr_decay = 0.95
     
     # Finally, launch the training loop.
     print("Starting training...")
@@ -628,13 +641,16 @@ def main(args):
       train_batches = 0
       start_time = time.time()
       lr = base_lr * (lr_decay**epoch)  
-      
+      import pdb; pdb.set_trace()
       for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
 	
         inputs, targets = batch
-        #inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
+        # inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
         #this is the forwards pass -> need to time 
-        train_err += train_fn(inputs, targets,lr)
+#	train_err += train_fn(inputs, targets,lr)
+	tmp, lr = train_fn(inputs, targets,lr)
+	train_err += tmp
+
         train_batches += 1
         #debugging by adding av_train_err and print training loss
 	av_train_err = train_err / train_batches
@@ -646,7 +662,7 @@ def main(args):
       val_batches = 0
       for batch in iterate_minibatches(X_val, y_val, subject_val, batch_size, shuffle=False):
 	inputs, targets = batch
-        #inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
+        # inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
         err, acc = val_fn(inputs, targets)
        #val_fn is the backwards pass -> need to measure
         val_err += err
@@ -685,7 +701,7 @@ def main(args):
         test_batches = 0
         for batch in iterate_minibatches(X_test, y_test, subject_test, batch_size, shuffle=False):
           inputs, targets = batch
-          #inputs=(inputs-X_test_mean)/(0.001+X_test_variance)
+          # inputs=(inputs-X_test_mean)/(0.001+X_test_variance)
           err, acc = val_fn(inputs, targets)
           test_err += err
           test_acc += acc
@@ -700,7 +716,7 @@ def main(args):
         sys.stdout.flush()
       
       # Dump the network weights to a file like this:
-        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
+#        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
     validScores.append(best_validation_accu * 100)
     testScores.append(av_test_acc * 100)
     print('-' * 50)
