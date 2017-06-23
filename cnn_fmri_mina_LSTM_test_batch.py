@@ -572,7 +572,7 @@ def main(args):
     X_test = np.reshape(X_test,[X_test_axis,137,1,12,13,16]).swapaxes(0,1)
     
 
-    import pdb; pdb.set_trace()
+    
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
@@ -629,7 +629,7 @@ def main(args):
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
   
     base_lr = 0.1
-    lr_decay = 0.95
+    lr_decay = 0.93
     
     # Finally, launch the training loop.
     print("Starting training...")
@@ -640,8 +640,8 @@ def main(args):
       train_err = 0
       train_batches = 0
       start_time = time.time()
-      lr = base_lr * (lr_decay**epoch)  
-      import pdb; pdb.set_trace()
+      lr = base_lr * (lr_decay**epoch)
+     
       for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
 	
         inputs, targets = batch
