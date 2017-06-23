@@ -114,11 +114,11 @@ def reformatInput(data, labels, indices, subjects):
   
 
   trainIndices = indices[0]
-  #validIndices = indices[1]
-  testIndices = indices[1]
+  validIndices = indices[1]
+  testIndices = indices[2]
   
   map_train=subjects[trainIndices]
- # map_valid=subjects[validIndices]
+  map_valid=subjects[validIndices]
   map_test=subjects[testIndices]
   set(map_train).intersection(map_valid)
   
@@ -133,6 +133,8 @@ def reformatInput(data, labels, indices, subjects):
   elif data.ndim == 6:
     return [(data[:, trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32),
             np.squeeze(subjects[trainIndices]).astype(np.int32)), 
+            (data[:, validIndices], np.squeeze(labels[validIndices]).astype(np.int32),
+            np.squeeze(subjects[validIndices]).astype(np.int32)),
             (data[:, testIndices], np.squeeze(labels[testIndices]).astype(np.int32),
             np.squeeze(subjects[testIndices]).astype(np.int32))]
 
@@ -497,24 +499,23 @@ def main(args):
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
     '''
     test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
-    #valid_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i+1), sub_nums < subs_in_fold * (i + 2))
-    train_ids=~ test_ids
+    valid_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i+1), sub_nums < subs_in_fold * (i + 2))
+    train_ids=~ valid_ids ^ test_ids
     fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(valid_ids)[0], np.nonzero(test_ids)[0]))
  
   # Initializing output variables
   validScores, testScores = [], []
   trainLoss = np.zeros((len(fold_pairs), num_epochs))
-  #validLoss = np.zeros((len(fold_pairs), num_epochs))
-  #validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
-  
+  validLoss = np.zeros((len(fold_pairs), num_epochs))
+  validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
   # fold_pairs[:1]
   for foldNum, fold in enumerate(fold_pairs):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
-    (X_train, y_train, subject_train), (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
+    (X_train, y_train, subject_train), (X_val, y_val, subject_val), (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
    
     X_train = X_train.astype("float32", casting='unsafe')
-    #X_val = X_val.astype("float32", casting='unsafe')
+    X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
     
     #X_train shape = (137, 304, 1, 12, 13, 16)
@@ -546,6 +547,17 @@ def main(args):
     # reshape back to (N,T,1,12,13,16)
     X_train = np.reshape(X_train,[X_train_axis,137,1,12,13,16]).swapaxes(0,1)
 
+    X_val_axis = X_val.shape[1]
+    X_val = np.reshape(X_val,[137,X_val_axis,1, 2496]).swapaxes(0,1)
+
+    X_val_mean=np.mean(X_val, axis=(1,2), keepdims=True)
+    X_val_variance=np.var(X_val,axis=(1,2), keepdims=True)
+#    X_val_variance=X_val_std**2
+
+    X_val = (X_val-X_val_mean)/(0.001+X_val_variance)
+    # X_val is now in shape (N,T,V)
+    # reshape back to (N,T,1,12,13,16)
+    X_val = np.reshape(X_val,[X_val_axis,137,1,12,13,16]).swapaxes(0,1)
 
     X_test_axis = X_test.shape[1]
     X_test = np.reshape(X_test,[137,X_test_axis,1, 2496]).swapaxes(0,1)
@@ -560,6 +572,7 @@ def main(args):
     X_test = np.reshape(X_test,[X_test_axis,137,1,12,13,16]).swapaxes(0,1)
     
 
+    
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
@@ -616,19 +629,19 @@ def main(args):
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
   
     base_lr = 0.1
-    lr_decay = 0.95
+    lr_decay = 0.93
     
     # Finally, launch the training loop.
     print("Starting training...")
-    #best_validation_accu = 0
+    best_validation_accu = 0
     # We iterate over epochs:
     for epoch in range(num_epochs):
       # In each epoch, we do a full pass over the training data:
       train_err = 0
       train_batches = 0
       start_time = time.time()
-      lr = base_lr * (lr_decay**epoch)  
-      
+      lr = base_lr * (lr_decay**epoch)
+     
       for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
 	
         inputs, targets = batch
@@ -643,47 +656,71 @@ def main(args):
 	av_train_err = train_err / train_batches
        # print("  training loss:\t\t{:.6f}".format(av_train_err))
 
-      
+      # And a full pass over the validation data:
+      val_err = 0
+      val_acc = 0
+      val_batches = 0
+      for batch in iterate_minibatches(X_val, y_val, subject_val, batch_size, shuffle=False):
+	inputs, targets = batch
+        # inputs=(inputs-X_val_mean)/(0.001+X_val_variance)
+        err, acc = val_fn(inputs, targets)
+       #val_fn is the backwards pass -> need to measure
+        val_err += err
+        val_acc += acc
+        val_batches += 1
+     
+        #debugging by adding av_val_err and av_val_acc
+	av_val_err = val_err / val_batches
+	av_val_acc = val_acc / val_batches
+       # print("  validation loss:\t\t{:.6f}".format(av_val_err))
+	#print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+     
       av_train_err = train_err / train_batches
-      
+      av_val_err = val_err / val_batches
+      av_val_acc = val_acc / val_batches
       # Then we print the results for this epoch:
       
       print("Epoch {} of {} took {:.3f}s".format(
         epoch + 1, num_epochs, time.time() - start_time))
       print("  training loss:\t\t{:.6f}".format(av_train_err))
-      #print("  validation loss:\t\t{:.6f}".format(av_val_err))
-     # print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+      print("  validation loss:\t\t{:.6f}".format(av_val_err))
+      print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
       
       sys.stdout.flush()
 
       trainLoss[foldNum, epoch] = av_train_err
-    
-      # After training, we compute and print the test error:
-      test_err = 0
-      test_acc = 0
-      test_batches = 0
-      for batch in iterate_minibatches(X_test, y_test, subject_test, batch_size, shuffle=False):
-        inputs, targets = batch
-        # inputs=(inputs-X_test_mean)/(0.001+X_test_variance)
-        err, acc = val_fn(inputs, targets)
-        test_err += err
-        test_acc += acc
-        test_batches += 1
+      validLoss[foldNum, epoch] = av_val_err
+      validEpochAccu[foldNum, epoch] = av_val_acc * 100
 
-      av_test_err = test_err / test_batches
-      av_test_acc = test_acc / test_batches
-      print("Final results:")
-      print("  test loss:\t\t\t{:.6f}".format(av_test_err))
-      print("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-    
-      sys.stdout.flush()
+      if av_val_acc > best_validation_accu:
+        best_validation_accu = av_val_acc
+
+        # After training, we compute and print the test error:
+        test_err = 0
+        test_acc = 0
+        test_batches = 0
+        for batch in iterate_minibatches(X_test, y_test, subject_test, batch_size, shuffle=False):
+          inputs, targets = batch
+          # inputs=(inputs-X_test_mean)/(0.001+X_test_variance)
+          err, acc = val_fn(inputs, targets)
+          test_err += err
+          test_acc += acc
+          test_batches += 1
+
+        av_test_err = test_err / test_batches
+        av_test_acc = test_acc / test_batches
+        print("Final results:")
+        print("  test loss:\t\t\t{:.6f}".format(av_test_err))
+        print("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
+      
+        sys.stdout.flush()
       
       # Dump the network weights to a file like this:
 #        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
-    #validScores.append(best_validation_accu * 100)
+    validScores.append(best_validation_accu * 100)
     testScores.append(av_test_acc * 100)
     print('-' * 50)
-    #print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
+    print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
   scipy.io.savemat('cnn_lasg_{0}_results'.format(model),
                    {'validAccu': validScores,
