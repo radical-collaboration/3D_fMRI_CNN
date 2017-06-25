@@ -40,7 +40,8 @@ DEFAULT_NUM_INPUT_CHANNELS= 1      # Leave this to be 1 (this is a filler dimens
 DEFAULT_MODEL = 'mix'  # Model type selection ['1dconv', 'maxpool', 'lstm', 'mix', 'lstm2']
 DEFAULT_NUM_FOLDS = 10   # Default number of folds in cross validation
 
- 
+num_steps = 64
+
  ##################### Build the neural network model #######################
 # This script supports three types of models. For each one, we define a
 # function that takes a Theano variable representing the input and returns
@@ -120,7 +121,7 @@ def reformatInput(data, labels, indices, subjects):
   map_train=subjects[trainIndices]
  # map_valid=subjects[validIndices]
   map_test=subjects[testIndices]
-  set(map_train).intersection(map_valid)
+  # set(map_train).intersection(map_valid)
   
   # Shuffling training data
   # shuffledIndices = np.random.permutation(len(trainIndices))
@@ -163,7 +164,6 @@ def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(4, 2, 1),
   if W_init is None:
     W_init = [lasagne.init.GlorotUniform()] * sum(n_layers)
   # Input layer
-
   network = InputLayer(shape=(None, num_input_channels, input_shape[-3], input_shape[-2], input_shape[-1]),
                        input_var=input_var)
 
@@ -261,7 +261,6 @@ def build_convpool_lstm(input_vars, input_shape=None):
     else:
       convnet, _ = build_cnn(input_vars[i], input_shape, W_init)
     convnets.append(FlattenLayer(convnet))
-  
   
   # at this point convnets shape is [numTimeWin][n_samples, features]
   # we want the shape to be [n_samples, features, numTimeWin]
@@ -413,7 +412,7 @@ def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=Fals
   
   T= 137
  
-  num_steps = 64
+  # num_steps = 64
   input_len = inputs.shape[1]
   X = []
   #Y = []
@@ -498,7 +497,8 @@ def main(args):
     test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
     #valid_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i+1), sub_nums < subs_in_fold * (i + 2))
     train_ids=~ test_ids
-    fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(valid_ids)[0], np.nonzero(test_ids)[0]))
+    # fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(valid_ids)[0], np.nonzero(test_ids)[0]))
+    fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
  
   # Initializing output variables
   validScores, testScores = [], []
@@ -566,16 +566,20 @@ def main(args):
 
     print("Building model and compiling functions...")
     # Building the appropriate model
+    
+    input_shape = list(X_train.shape)
+    input_shape[0] = num_steps
+
     if model == '1dconv':
-      network = build_convpool_conv1d(input_var, X_train.shape)
+      network = build_convpool_conv1d(input_var, input_shape)
     elif model == 'maxpool':
-      network = build_convpool_max(input_var, X_train.shape)
+      network = build_convpool_max(input_var, input_shape)
     elif model == 'lstm':
-      network = build_convpool_lstm(input_var, X_train.shape)
+      network = build_convpool_lstm(input_var, input_shape)
     elif model == 'mix':
-      network = build_convpool_mix(input_var, X_train.shape)
+      network = build_convpool_mix(input_var, input_shape)
     elif model == 'lstm2':
-      network = build_lstm(input_var, X_train.shape)
+      network = build_lstm(input_var, input_shape)
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
@@ -685,11 +689,12 @@ def main(args):
     #print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
   scipy.io.savemat('cnn_lasg_{0}_results'.format(model),
-                   {'validAccu': validScores,
+                   {
+#                    'validAccu': validScores,
                     'testAccu': testScores,
                     'trainLoss': trainLoss,
-                    'validLoss': validLoss,
-                    'validEpochAccu': validEpochAccu
+#                    'validLoss': validLoss,
+#                    'validEpochAccu': validEpochAccu
                     })
 
 
