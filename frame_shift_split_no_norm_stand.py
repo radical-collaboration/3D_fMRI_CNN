@@ -4,7 +4,7 @@ import nibabel as nb
 import glob
 import scipy.io as sio
 
-path = '/cstor/xsede/users/xs-jdakka/mina_standardized_lpf/input_data'
+path = '/cstor/xsede/users/xs-jdakka/standardized_3stage_Global/input_data'
 
 
 def sites_labels():
@@ -98,7 +98,7 @@ def return_label(list_subject_ID, list_labels, subject_ID):
 
 
 def load_data_split_frames(list_subject_ID, list_labels):
-    for filename in glob.glob(os.path.join(path, '*_3.nii.gz')):
+    for filename in glob.glob(os.path.join(path, '*.nii.gz')):
         img = nb.load(filename)
         subject_ID = parse_filename(filename)
         label = return_label(list_subject_ID, list_labels, subject_ID)
@@ -112,14 +112,14 @@ def load_data_split_frames(list_subject_ID, list_labels):
             #frames = nb.Nifti1Image(frames, affine=np.eye(4))
             subject_ID_string = parse_filename_storing(filename)
             string_name = str(label) + '_' + subject_ID_string
-            nb.save(img, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/normal', string_name))
+            nb.save(img, os.path.join('/cstor/xsede/users/xs-jdakka/standardized_3stage_Global/input_data/normal', string_name))
             
 
         if label == 1:
             
             subject_ID_string = parse_filename_storing(filename)
             string_name = str(label) + '_' + subject_ID_string
-            nb.save(img, os.path.join('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/schizophrenic', string_name))
+            nb.save(img, os.path.join('/cstor/xsede/users/xs-jdakka/standardized_3stage_Global/input_data/schizophrenic', string_name))
 
 
 def main():
@@ -146,39 +146,39 @@ def test():
 
 
 main()
-# sites_labels2()
-
-# test()
 
 
-'''
 
 
-def sites_labels2():
-
-	mat=sio.loadmat('SubjectsID_final.mat')
-	list_subject_ID = None
-	list_labels = None
-	for key in mat['SubjectsID'][0,0]:
-		site_ID = mat['SubjectsID'][0,0][key]['ID'][0,0].tolist()
-		site_labels = mat['SubjectsID'][0,0][key]['labels'][0,0].tolist()
-	print site_ID
-	print site_labels	
-
-vol1= img.dataobj[..., 0:10]
-
-proxy_img=img
-vol1= proxy_img.dataobj[..., 0:10]
-vol2=proxy_img.dataobj[..., 5:15]
-print vol1.shape 
-print vol2.shape
 
 
-print(img)
-print img.shape
-
-affine = img.affine
-print affine 	
 
 
-'''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
