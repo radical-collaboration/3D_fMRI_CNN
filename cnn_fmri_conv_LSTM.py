@@ -270,12 +270,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
 
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
 
-  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip,nonlinearity=lasagne.nonlinearities.sigmoid)
-
-
-  #convpool = lasagne.layers.dropout(convpool, p=.3)
-
-  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip,nonlinearity=lasagne.nonlinearities.sigmoid)
+  convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip,nonlinearity=lasagne.nonlinearities.tanh)
 
 
   # After LSTM layer you either need to reshape or slice it (depending on whether you
@@ -286,13 +281,14 @@ def build_convpool_lstm(input_vars, input_shape=None):
   convpool = SliceLayer(convpool, -1, 1)  # Selecting the last prediction
 
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
-  convpool = DenseLayer(convpool, num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
+  convpool = DenseLayer(lasagne.layers.dropout(convpool, p=.5), num_units=256, 
+            nonlinearity=lasagne.nonlinearities.rectify)
   
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
 
   # And, finally, the output layer with 50% dropout on its inputs:
-  convpool = DenseLayer(convpool, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  convpool = DenseLayer(lasagne.layers.dropout(convpool, p=.5), num_units=num_classes,                    nonlinearity=lasagne.nonlinearities.softmax)
   
   return convpool
 
