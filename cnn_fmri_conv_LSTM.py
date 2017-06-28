@@ -139,7 +139,7 @@ def reformatInput(data, labels, indices, subjects):
 
 
 
-def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(4, 2, 1), n_filters_first=32, imSize=32, n_colors=1):
+def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(2, 1), n_filters_first=16, imSize=32, n_colors=1):
   """
   Builds a VGG style CNN network followed by a fully-connected layer and a softmax layer.
   Stacks are separated by a maxpool layer. Number of kernels in each layer is twice
@@ -261,7 +261,6 @@ def build_convpool_lstm(input_vars, input_shape=None):
     else:
       convnet, _ = build_cnn(input_vars[i], input_shape, W_init)
     convnets.append(FlattenLayer(convnet))
-  
   # at this point convnets shape is [numTimeWin][n_samples, features]
   # we want the shape to be [n_samples, features, numTimeWin]
   convpool = ConcatLayer(convnets)
@@ -618,8 +617,8 @@ def main(args):
     # Compile a second function computing the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
   
-    base_lr = 0.1
-    lr_decay = 0.95
+    base_lr = 0.001
+    lr_decay = 0.9
     
     # Finally, launch the training loop.
     print("Starting training...")
@@ -632,20 +631,21 @@ def main(args):
       start_time = time.time()
       lr = base_lr * (lr_decay**epoch)  
       
-      for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
+      for batch_num, batch in enumerate(iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False)):
 	
         inputs, targets = batch
         # inputs=(inputs-X_train_mean)/(0.001+X_train_variance)
         #this is the forwards pass -> need to time 
-#	train_err += train_fn(inputs, targets,lr)
-	tmp, lr = train_fn(inputs, targets,lr)
-	train_err += tmp
+        #	train_err += train_fn(inputs, targets,lr)
+        tmp, lr = train_fn(inputs, targets,lr)
+        train_err += tmp
 
         train_batches += 1
         #debugging by adding av_train_err and print training loss
-	av_train_err = train_err / train_batches
+	  # av_train_err = train_err / train_batches
        # print("  training loss:\t\t{:.6f}".format(av_train_err))
-
+        if batch_num % 100 == 0:
+          print(" Train loss at batch num %d: %.6f " % (batch_num, train_err / batch_num))
       
       av_train_err = train_err / train_batches
       
