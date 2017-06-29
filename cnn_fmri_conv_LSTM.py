@@ -608,7 +608,8 @@ def main(args):
     # parameters at each training step.
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.scalar(name='learning_rate')
-    updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate, momentum=0.9)
+    # updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate, momentum=0.9)
+    updates = lasagne.updates.adam(loss, params, learning_rate=learning_rate)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -630,7 +631,7 @@ def main(args):
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
     base_lr = 0.001
-    lr_decay = 0.9
+    lr_decay = 1
 
     # Finally, launch the training loop.
     print("Starting training...")
