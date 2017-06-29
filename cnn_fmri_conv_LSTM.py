@@ -724,16 +724,15 @@ def main(args):
     print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
   scipy.io.savemat('cnn_lasg_{0}_results'.format(model),
                    {
-                                        'validAccu': validScores,
+                     'validAccu': validScores,
                      'testAccu': testScores,
                      'trainLoss': trainLoss,
-                                        'validLoss': validLoss,
-                                        'validEpochAccu': validEpochAccu
+                     'validLoss': validLoss,
+                     'validEpochAccu': validEpochAccu
                    })
 
 
 if __name__ == '__main__':
- 
   parser = argparse.ArgumentParser(description='Runs R-CNN on fMRI data.')
   # parser.add_argument('csv_file', metavar='F', type=str,
   #                   help='CSV file containing subject IDs, labels, and filenames.')
