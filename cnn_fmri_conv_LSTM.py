@@ -104,7 +104,6 @@ def load_data():
 
   subjects = np.asarray(subjects, dtype=int)
 
-
   return features, labels, subjects, np.asarray(runs)
 
 
@@ -275,7 +274,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
 
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
 
-  convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip,nonlinearity=lasagne.nonlinearities.tanh)
+  convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip, nonlinearity=lasagne.nonlinearities.tanh)
 
   # convpool = lasagne.layers.dropout(convpool, p=.3)
 
@@ -466,7 +465,6 @@ def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=Fals
 
 # ############################## Main program ################################
 def main(args):
-   
   global num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels
   # print num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels
 
@@ -478,6 +476,11 @@ def main(args):
   grad_clip = int(args.grad_clip)
   model = args.model
   num_input_channels = int(args.num_input_channels)
+  fold_to_run = int(args.fold_to_run)
+  if fold_to_run == -1:
+    fold_to_run = range(num_folds)
+  else:
+    fold_to_run = [fold_to_run]
 
   print('Model type is : {0}'.format(model))
   # Load the dataset
@@ -492,7 +495,6 @@ def main(args):
   subs_in_fold = np.ceil(np.max(sub_nums) / float(num_folds))
 
   for i in range(num_folds):
-  
     '''
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
     '''
@@ -506,8 +508,7 @@ def main(args):
   validLoss = np.zeros((len(fold_pairs), num_epochs))
   validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
 
-  # fold_pairs[:1]
-  for foldNum, fold in enumerate(fold_pairs):
+  for foldNum, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train, subject_train), \
@@ -658,7 +659,6 @@ def main(args):
 
       av_train_err = train_err / train_batches
 
-
       val_err = 0
       val_acc = 0
       val_batches = 0
@@ -673,7 +673,6 @@ def main(args):
         # debugging by adding av_val_err and av_val_acc
       av_val_err = val_err / val_batches
       av_val_acc = val_acc / val_batches
-
 
       av_train_err = train_err / train_batches
       av_val_err = val_err / val_batches
@@ -721,7 +720,7 @@ def main(args):
     print('-' * 50)
     print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_lasg_{0}_results_adam_15epoch_val'.format(model),
+  scipy.io.savemat('cnn_lasg_{0}_results_adam_{1}_{2}'.format(model, base_lr, str(fold_to_run)),
                    {
                      'validAccu': validScores,
                      'testAccu': testScores,
@@ -756,5 +755,7 @@ if __name__ == '__main__':
   parser.add_argument('--num_input_channels', dest='num_input_channels', type=int,
                       help='Number of input (color) channels.',
                       default=DEFAULT_NUM_INPUT_CHANNELS)
+  parser.add_argument('--fold_to_run', dest='fold_to_run', type=int,
+                      help='fold numbers to run (default=-1 for all folds).',
+                      default=-1)
   main(parser.parse_args())
-
