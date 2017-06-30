@@ -720,8 +720,9 @@ def main(args):
     print('-' * 50)
     print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_lasg_{0}_results_adam_{1}_{2}'.format(model, base_lr, str(fold_to_run)),
+  scipy.io.savemat('cnn_lasg_{0}_results_adam_{1}_fold{2}'.format(model, base_lr, str(fold_to_run)),
                    {
+                     'folds': fold_to_run,
                      'validAccu': validScores,
                      'testAccu': testScores,
                      'trainLoss': trainLoss,
