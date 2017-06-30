@@ -27,10 +27,17 @@ from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
 from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
 from lasagne.regularization import *
 import h5py
-import scipy
+import scipy.io
 import pdb
+import logging
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'  # CSV file containing labels and file locations
+
+logging.basicConfig(filename='testlog.log', level=logging.DEBUG)
+
+def log_info_string(input_string):
+  print(input_string)
+  logging.info(input_string)
 
 # Training parameters
 DEFAULT_NUM_EPOCHS = 10  # Number of epochs for training
@@ -482,9 +489,9 @@ def main(args):
   else:
     fold_to_run = [fold_to_run]
 
-  print('Model type is : {0}'.format(model))
+  log_info_string('Model type is : {0}'.format(model))
   # Load the dataset
-  print("Loading data...")
+  log_info_string("Loading data...")
 
   data, labels, subjects, runs = load_data()
   fold_pairs = []
@@ -509,7 +516,7 @@ def main(args):
   validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
 
   for foldNum, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
-    print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
+    log_info_string('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train, subject_train), \
     (X_val, y_val, subject_val), \
@@ -577,7 +584,7 @@ def main(args):
     target_var = T.ivector('targets')
     # Create neural network model (depending on first command line parameter)
 
-    print("Building model and compiling functions...")
+    log_info_string("Building model and compiling functions...")
     # Building the appropriate model
 
     input_shape = list(X_train.shape)
@@ -635,7 +642,7 @@ def main(args):
     lr_decay = 1
 
     # Finally, launch the training loop.
-    print("Starting training...")
+    log_info_string("Starting training...")
     best_validation_accu = 0
     # We iterate over epochs:
     for epoch in range(num_epochs):
@@ -679,11 +686,11 @@ def main(args):
       av_val_acc = val_acc / val_batches
 
       # Then we print the results for this epoch:
-      print("Epoch {} of {} took {:.3f}s".format(
+      log_info_string("Epoch {} of {} took {:.3f}s".format(
         epoch + 1, num_epochs, time.time() - start_time))
-      print("  training loss:\t\t{:.6f}".format(av_train_err))
-      print("  validation loss:\t\t{:.6f}".format(av_val_err))
-      print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+      log_info_string("  training loss:\t\t{:.6f}".format(av_train_err))
+      log_info_string("  validation loss:\t\t{:.6f}".format(av_val_err))
+      log_info_string("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
 
       sys.stdout.flush()
 
@@ -707,9 +714,9 @@ def main(args):
 
         av_test_err = test_err / test_batches
         av_test_acc = test_acc / test_batches
-        print("Test results:")
-        print("  test loss:\t\t\t{:.6f}".format(av_test_err))
-        print("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
+        log_info_string("Test results:")
+        log_info_string("  test loss:\t\t\t{:.6f}".format(av_test_err))
+        log_info_string("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
 
         sys.stdout.flush()
 
@@ -717,10 +724,10 @@ def main(args):
         #        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
     validScores.append(best_validation_accu * 100)
     testScores.append(av_test_acc * 100)
-    print('-' * 50)
-    print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
-    print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_lasg_{0}_results_adam_{1}_fold{2}'.format(model, base_lr, str(fold_to_run)),
+    log_info_string('-' * 50)
+    log_info_string("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
+    log_info_string("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
+  scipy.io.savemat('cnn_{0}_results_adam_{1}_fold{2}'.format(model, base_lr, str(fold_to_run)),
                    {
                      'folds': fold_to_run,
                      'validAccu': validScores,
