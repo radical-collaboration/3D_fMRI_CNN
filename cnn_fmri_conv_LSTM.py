@@ -517,7 +517,7 @@ def main(args):
   # validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
 
   # Leave-subject-out cross validation
-  for i in range(np.max(sub_nums)):
+  for i in range(1, np.max(sub_nums+1)):
     '''
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
     '''
