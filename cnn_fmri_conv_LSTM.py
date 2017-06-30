@@ -501,11 +501,27 @@ def main(args):
   sub_nums = subjects
   subs_in_fold = np.ceil(np.max(sub_nums) / float(num_folds))
 
-  for i in range(num_folds):
+  # n-fold cross validation
+  # for i in range(num_folds):
+  #   '''
+  #   for each kfold selects fold window to collect indices for test dataset and the rest becomes train
+  #   '''
+  #   test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
+  #   train_ids = ~ test_ids
+  #   fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
+  #
+  # # Initializing output variables
+  # validScores, testScores = [], []
+  # trainLoss = np.zeros((len(fold_pairs), num_epochs))
+  # validLoss = np.zeros((len(fold_pairs), num_epochs))
+  # validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
+
+  # Leave-subject-out cross validation
+  for i in range(np.max(sub_nums)):
     '''
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
     '''
-    test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
+    test_ids = sub_nums == i
     train_ids = ~ test_ids
     fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
 
@@ -729,7 +745,7 @@ def main(args):
     log_info_string('-' * 50)
     log_info_string("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     log_info_string("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_{0}_results_adam_{1}_fold{2}'.format(model, base_lr, ''.join([str(i) for i in fold_to_run])),
+  scipy.io.savemat('cnn_{0}_results_adam_{1}_LSO_fold{2}'.format(model, base_lr, ''.join([str(i) for i in fold_to_run])),
                    {
                      'folds': fold_to_run,
                      'validAccu': validScores,
