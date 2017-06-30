@@ -673,8 +673,7 @@ def main(args):
         # debugging by adding av_val_err and av_val_acc
       av_val_err = val_err / val_batches
       av_val_acc = val_acc / val_batches
-      print("  validation loss:\t\t{:.6f}".format(av_val_err))
-      print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+
 
       av_train_err = train_err / train_batches
       av_val_err = val_err / val_batches
@@ -684,8 +683,8 @@ def main(args):
       print("Epoch {} of {} took {:.3f}s".format(
         epoch + 1, num_epochs, time.time() - start_time))
       print("  training loss:\t\t{:.6f}".format(av_train_err))
-      # print("  validation loss:\t\t{:.6f}".format(av_val_err))
-      # print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+      print("  validation loss:\t\t{:.6f}".format(av_val_err))
+      print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
 
       sys.stdout.flush()
 
@@ -709,7 +708,7 @@ def main(args):
 
         av_test_err = test_err / test_batches
         av_test_acc = test_acc / test_batches
-        print("Final results:")
+        print("Test results:")
         print("  test loss:\t\t\t{:.6f}".format(av_test_err))
         print("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
 
