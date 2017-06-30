@@ -33,8 +33,6 @@ import logging
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'  # CSV file containing labels and file locations
 
-logging.basicConfig(filename='testlog.log', level=logging.DEBUG)
-
 def log_info_string(input_string):
   print(input_string)
   logging.info(input_string)
@@ -489,6 +487,8 @@ def main(args):
   else:
     fold_to_run = [fold_to_run]
 
+  logging.basicConfig(filename='joblog{0}.log'.format(''.join([str(i) for i in fold_to_run])), level=logging.DEBUG)
+
   log_info_string('Model type is : {0}'.format(model))
   # Load the dataset
   log_info_string("Loading data...")
@@ -729,7 +729,7 @@ def main(args):
     log_info_string('-' * 50)
     log_info_string("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     log_info_string("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_{0}_results_adam_{1}_fold{2}'.format(model, base_lr, str(fold_to_run)),
+  scipy.io.savemat('cnn_{0}_results_adam_{1}_fold{2}'.format(model, base_lr, ''.join([str(i) for i in fold_to_run])),
                    {
                      'folds': fold_to_run,
                      'validAccu': validScores,
