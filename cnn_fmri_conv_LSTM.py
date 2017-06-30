@@ -279,7 +279,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
 
   # convpool = lasagne.layers.dropout(convpool, p=.3)
 
-  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip, nonlinearity=lasagne.nonlinearities.sigmoid)
+  convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip, nonlinearity=lasagne.nonlinearities.sigmoid)
 
   # After LSTM layer you either need to reshape or slice it (depending on whether you
   # want to keep all predictions or just the last prediction.
@@ -721,7 +721,7 @@ def main(args):
     print('-' * 50)
     print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_lasg_{0}_results'.format(model),
+  scipy.io.savemat('cnn_lasg_{0}_results_adam_15epoch_val'.format(model),
                    {
                      'validAccu': validScores,
                      'testAccu': testScores,
