@@ -515,6 +515,8 @@ def main(args):
   validLoss = np.zeros((len(fold_pairs), num_epochs))
   validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
 
+  log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
+
   for foldNum, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
     log_info_string('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
