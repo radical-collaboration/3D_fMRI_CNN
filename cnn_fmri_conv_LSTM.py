@@ -530,6 +530,7 @@ def main(args):
   trainLoss = np.zeros((len(fold_pairs), num_epochs))
   validLoss = np.zeros((len(fold_pairs), num_epochs))
   validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
+  testEpochAccu = np.zeros((len(fold_pairs), num_epochs))
 
   log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
 
@@ -740,6 +741,7 @@ def main(args):
 
         # Dump the network weights to a file like this:
         #        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
+      testEpochAccu[foldNum, epoch] = av_test_acc * 100
     validScores.append(best_validation_accu * 100)
     testScores.append(av_test_acc * 100)
     log_info_string('-' * 50)
@@ -752,7 +754,8 @@ def main(args):
                      'testAccu': testScores,
                      'trainLoss': trainLoss,
                      'validLoss': validLoss,
-                     'validEpochAccu': validEpochAccu
+                     'validEpochAccu': validEpochAccu,
+                     'testEpochAccu': testEpochAccu
                    })
 
 
