@@ -487,7 +487,7 @@ def main(args):
   else:
     fold_to_run = [fold_to_run]
 
-  logging.basicConfig(filename='joblog{0}.log'.format(''.join([str(i) for i in fold_to_run])), level=logging.DEBUG)
+  logging.basicConfig(filename='joblog_LSO{0}.log'.format(''.join([str(i) for i in fold_to_run])), level=logging.DEBUG)
 
   log_info_string('Model type is : {0}'.format(model))
   # Load the dataset
