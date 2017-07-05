@@ -299,7 +299,7 @@ def build_convpool_lstm(input_vars, input_shape=None):
   # to the next layer.
 
   # And, finally, the output layer with 50% dropout on its inputs:
-  convpool = DenseLayer(convpool, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.softmax)
 
   return convpool
 
@@ -622,7 +622,8 @@ def main(args):
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
-    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+    # loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+    loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
 
     loss = loss.mean()
     # reg_factor = 0.01
