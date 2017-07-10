@@ -299,7 +299,8 @@ def build_convpool_lstm(input_vars, input_shape=None):
   # to the next layer.
 
   # And, finally, the output layer with 50% dropout on its inputs:
-  convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.softmax)
+  # convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.softmax)
+  convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
 
   return convpool
 
@@ -352,7 +353,8 @@ def build_lstm(input_vars, input_shape=None):
   # to the next layer.
 
   # And, finally, the output layer with 70% dropout on its inputs:
-  l_dense = DenseLayer(l_dense, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  # l_dense = DenseLayer(l_dense, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  l_dense = DenseLayer(l_dense, num_units=num_classes, nonlinearity=lasagne.nonlinearities.sigmoid)
 
   # Penalize l_dense using l2
   # l_dense = regularize_layer_params_weighted(l_dense, l2)
@@ -622,8 +624,8 @@ def main(args):
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
-    # loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-    loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
+    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+    # loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
 
     loss = loss.mean()
     # reg_factor = 0.01
@@ -682,7 +684,7 @@ def main(args):
         train_batches += 1
         # debugging by adding av_train_err and print training loss
         av_train_err = train_err / train_batches
-        # print("  training loss:\t\t{:.6f}".format(av_train_err))
+        print("  training loss:\t\t{:.6f}".format(av_train_err))
 
       av_train_err = train_err / train_batches
 
@@ -741,7 +743,7 @@ def main(args):
         sys.stdout.flush()
 
         # Dump the network weights to a file like this:
-        #        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
+        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
       testEpochAccu[foldNum, epoch] = av_test_acc * 100
     validScores.append(best_validation_accu * 100)
     testScores.append(av_test_acc * 100)
