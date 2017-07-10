@@ -308,8 +308,8 @@ def build_convpool_lstm(input_vars, input_shape=None):
   # to the next layer.
 
   # And, finally, the output layer with 50% dropout on its inputs:
-  # convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.softmax)
-  convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
+  convpool = DenseLayer(convpool, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  # convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
 
   return convpool
 
@@ -361,7 +361,8 @@ def build_lstm(input_vars, input_shape=None):
   # to the next layer.
 
   # And, finally, the output layer with 70% dropout on its inputs:
-  l_dense = DenseLayer(l_dense, num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
+  l_dense = DenseLayer(l_dense, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  # l_dense = DenseLayer(l_dense, num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
 
   # Penalize l_dense using l2
   # l_dense = regularize_layer_params_weighted(l_dense, l2)
@@ -626,8 +627,8 @@ def main(args):
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
-    # loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-    loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
+    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+    # loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
 
     loss = loss.mean()
     # reg_factor = 0.01
@@ -647,9 +648,9 @@ def main(args):
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
     test_prediction = lasagne.layers.get_output(network, deterministic=True)
-    # test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
-    #                                                         target_var)
-    test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var)
+    test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
+                                                            target_var)
+    # test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var)
     test_loss = test_loss.mean()
 
     # As a bonus, also create an expression for the classification accuracy:
