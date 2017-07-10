@@ -320,7 +320,6 @@ def build_lstm(input_vars, input_shape=None):
 
   network = InputLayer(shape=(input_shape[0], None, num_input_channels, input_shape[-3],
                               input_shape[-2], input_shape[-1]), input_var=input_vars)
-
   network = ReshapeLayer(network, ([0], -1, 2496))
   network = DimshuffleLayer(network, (1, 0, 2))
 
@@ -353,8 +352,7 @@ def build_lstm(input_vars, input_shape=None):
   # to the next layer.
 
   # And, finally, the output layer with 70% dropout on its inputs:
-  # l_dense = DenseLayer(l_dense, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
-  l_dense = DenseLayer(l_dense, num_units=num_classes, nonlinearity=lasagne.nonlinearities.sigmoid)
+  l_dense = DenseLayer(l_dense, num_units=1, nonlinearity=lasagne.nonlinearities.softmax)
 
   # Penalize l_dense using l2
   # l_dense = regularize_layer_params_weighted(l_dense, l2)
@@ -624,8 +622,8 @@ def main(args):
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
-    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-    # loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
+    # loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+    loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
 
     loss = loss.mean()
     # reg_factor = 0.01
