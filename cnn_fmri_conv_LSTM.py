@@ -31,8 +31,6 @@ import scipy.io
 import pdb
 import logging
 
-filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'  # CSV file containing labels and file locations
-
 def log_info_string(input_string):
   print(input_string)
   logging.info(input_string)
@@ -67,15 +65,23 @@ def load_data():
   data: array_like
   """
   ##### Load labels
+  # f = h5py.File(
+  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_runs.hdf5', 'r')
+  # g = h5py.File(
+  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_labels.hdf5', 'r')
+  # h = h5py.File(
+  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_subjects.hdf5', 'r')
+  # i = h5py.File(
+  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_features.hdf5', 'r')
 
   f = h5py.File(
-    '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_runs.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_runs.hdf5', 'r')
   g = h5py.File(
-    '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_labels.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_labels.hdf5', 'r')
   h = h5py.File(
-    '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_subjects.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_subjects.hdf5', 'r')
   i = h5py.File(
-    '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_features.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_features.hdf5', 'r')
 
   subjects, labels, features, runs = [], [], [], []
 
@@ -117,11 +123,12 @@ def reformatInput(data, labels, indices, subjects):
   Receives the the indices for train and test datasets.
   Outputs the train, validation, and test data and label datasets.
   """
-  # Data from a randomly selected subject is used as validation
+  # Data from a randomly subset of subjects is used as validation
   train_subjects = np.unique(subjects[indices[0]])
-  val_subject = train_subjects[np.random.choice(range(len(train_subjects)), 1)]
-  validIndices = indices[0][subjects[indices[0]] == val_subject]
-  trainIndices = indices[0][subjects[indices[0]] != val_subject]
+  test_subjects = np.unique(subjects[indices[1]])
+  val_subjects = train_subjects[np.random.choice(range(len(train_subjects)), len(test_subjects), replace=False)]
+  validIndices = indices[0][np.in1d(subjects[indices[0]], val_subjects)]
+  trainIndices = indices[0][~np.in1d(subjects[indices[0]], val_subjects)]
   testIndices = indices[1]
 
   # trainIndices = indices[0]
@@ -354,7 +361,7 @@ def build_lstm(input_vars, input_shape=None):
   # to the next layer.
 
   # And, finally, the output layer with 70% dropout on its inputs:
-  l_dense = DenseLayer(l_dense, num_units=1, nonlinearity=lasagne.nonlinearities.softmax)
+  l_dense = DenseLayer(l_dense, num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
 
   # Penalize l_dense using l2
   # l_dense = regularize_layer_params_weighted(l_dense, l2)
@@ -504,28 +511,23 @@ def main(args):
   subs_in_fold = np.ceil(np.max(sub_nums) / float(num_folds))
 
   # n-fold cross validation
-  # for i in range(num_folds):
-  #   '''
-  #   for each kfold selects fold window to collect indices for test dataset and the rest becomes train
-  #   '''
-  #   test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
-  #   train_ids = ~ test_ids
-  #   fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
-  #
-  # # Initializing output variables
-  # validScores, testScores = [], []
-  # trainLoss = np.zeros((len(fold_pairs), num_epochs))
-  # validLoss = np.zeros((len(fold_pairs), num_epochs))
-  # validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
-
-  # Leave-subject-out cross validation
-  for i in range(1, np.max(sub_nums+1)):
+  for i in range(num_folds):
     '''
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
     '''
-    test_ids = sub_nums == i
+    test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
     train_ids = ~ test_ids
     fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
+  #
+
+  # Leave-subject-out cross validation
+  # for i in range(1, np.max(sub_nums+1)):
+  #   '''
+  #   for each kfold selects fold window to collect indices for test dataset and the rest becomes train
+  #   '''
+  #   test_ids = sub_nums == i
+  #   train_ids = ~ test_ids
+  #   fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
 
   # Initializing output variables
   validScores, testScores = [], []
@@ -645,8 +647,9 @@ def main(args):
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
     test_prediction = lasagne.layers.get_output(network, deterministic=True)
-    test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
-                                                            target_var)
+    # test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
+    #                                                         target_var)
+    test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var)
     test_loss = test_loss.mean()
 
     # As a bonus, also create an expression for the classification accuracy:
@@ -683,8 +686,8 @@ def main(args):
 
         train_batches += 1
         # debugging by adding av_train_err and print training loss
-        av_train_err = train_err / train_batches
-        print("  training loss:\t\t{:.6f}".format(av_train_err))
+        # av_train_err = train_err / train_batches
+        # print("  training loss:\t\t{:.6f}".format(av_train_err))
 
       av_train_err = train_err / train_batches
 
