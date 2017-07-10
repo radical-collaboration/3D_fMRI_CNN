@@ -117,13 +117,11 @@ def reformatInput(data, labels, indices, subjects):
   Receives the the indices for train and test datasets.
   Outputs the train, validation, and test data and label datasets.
   """
-  pdb.set_trace()
-  trainIndices = indices[0]
   # Data from a randomly selected subject is used as validation
-  train_subjects = np.unique(subjects[trainIndices])
+  train_subjects = np.unique(subjects[indices[0]])
   val_subject = train_subjects[np.random.choice(range(len(train_subjects)), 1)]
-  validIndices = indices[0][subjects == val_subject]
-  trainIndices = ~validIndices
+  validIndices = indices[0][subjects[indices[0]] == val_subject]
+  trainIndices = indices[0][subjects[indices[0]] != val_subject]
   testIndices = indices[1]
 
   # trainIndices = indices[0]
