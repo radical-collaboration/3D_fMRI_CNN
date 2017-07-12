@@ -142,8 +142,8 @@ def inference(images, weights=None):
   assign_ops = []
   cnn_layer_shapes = [];
   cnn_layer_shapes.append([3, 3, 3, 16])
-  cnn_layer_shapes.append([3, 3, 32, 16])
-  cnn_layer_shapes.append([3, 3, 32, 32])
+  cnn_layer_shapes.append([3, 3, 3, 32])
+  cnn_layer_shapes.append([3, 3, 3, 32])
   
   # Conv1_1
   layer_num = 0
@@ -221,10 +221,10 @@ def inference_reverse(feature_map, weights=None, filt_num=0):
   # conv1
   assign_ops = []
   cnn_layer_shapes = [];
-  cnn_layer_shapes.append([3, 3, 16, 3])
-  cnn_layer_shapes.append([3, 3, 16, 16])
-  cnn_layer_shapes.append([3, 3, 16, 32])
-  cnn_layer_shapes.append([3, 3, 1, 32])
+  cnn_layer_shapes.append([3, 3, 3, 16, 1])
+  cnn_layer_shapes.append([3, 3, 3, 16, 16])
+  cnn_layer_shapes.append([3, 3, 3, 16, 32])
+  cnn_layer_shapes.append([3, 3, 3, 1, 32])
  
 
   # We start from the last conv layer and backpropogate towards the input.
