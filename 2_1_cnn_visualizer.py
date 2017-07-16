@@ -255,13 +255,13 @@ def inference_reverse(feature_map, weights=None, filt_num=0):
     _activation_summary(deconv2_1)
     layer_num -= 1
 
-   unmaxpool2 = tf.image.resize_bicubic(deconv2_1, [16, 16])
+  unmaxpool2 = tf.image.resize_bicubic(deconv2_1, [16, 16])
 
-   with tf.variable_scope('deconv1_2') as scope:
+  with tf.variable_scope('deconv1_2') as scope:
     rect_map = tf.nn.relu(unmaxpool2, name=scope.name)
     biases = _variable_on_cpu('biases', cnn_layer_shapes[layer_num][2], tf.constant_initializer(0.0))
     # Load baseline parameters from file
-    b_ = tf.constant(weights[layer_num * 2 + 1]
+    b_ = tf.constant(weights[layer_num * 2 + 1])
     assign_ops.append(tf.assign(biases, b_))
     unbiased_feature_map = tf.nn.bias_add(rect_map, -biases)
     # Shape of kernel is selected to only include one filter
@@ -279,11 +279,11 @@ def inference_reverse(feature_map, weights=None, filt_num=0):
     _activation_summary(deconv1_2)
     layer_num -= 1
 
-   with tf.variable_scope('deconv1_1') as scope:
+  with tf.variable_scope('deconv1_1') as scope:
     rect_map = tf.nn.relu(deconv1_2, name=scope.name)
     biases = _variable_on_cpu('biases', cnn_layer_shapes[layer_num][2], tf.constant_initializer(0.0))
     # Load baseline parameters from file
-    b_ = tf.constant(weights[layer_num * 2 + 1]
+    b_ = tf.constant(weights[layer_num * 2 + 1])
     assign_ops.append(tf.assign(biases, b_))
     unbiased_feature_map = tf.nn.bias_add(rect_map, -biases)
     # Shape of kernel is selected to only include one filter
@@ -301,7 +301,7 @@ def inference_reverse(feature_map, weights=None, filt_num=0):
     _activation_summary(deconv1_1)
     layer_num -= 1
 
-   return deconv1_1, assign_ops
+  return deconv1_1, assign_ops
 
 # Main loop
 if __name__ == '__main__':
@@ -319,16 +319,16 @@ if __name__ == '__main__':
     saved_pars = np.load(saved_pars_filename)
     param_values = [saved_pars['arr_%d' % i] for i in range(len(saved_pars.files))]
 
-   	images_train = data[:, tr]
-    labels_train = np.squeeze(labels[tr]).astype(np.int32)
-    images_test = (data[:, testIndices]
-    labels_test = np.squeeze(labels[testIndices]).astype(np.int32)
+    images_train = data[:, tr]
+    #labels_train = np.squeeze(labels[tr]).astype(np.int32)
+    images_test = data[:, ts]
+    #labels_test = np.squeeze(labels[testIndices]).astype(np.int32)
             
     # Create images in dimensions: [batch, in_height, in_width, in_channels]
     # Conv2d takes input, filter, strides, padding 
     # Compute the feature maps after each pool layer
     
-    [conv1, conv2, assign_ops] = inference(images, weights=param_values)
+    [conv1, conv2, assign_ops] = inference(images_train, weights=param_values)
 
     # Initial values
     init = tf.initialize_all_variables()
