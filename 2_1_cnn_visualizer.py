@@ -314,16 +314,20 @@ if __name__ == '__main__':
     ts = subjects == sub_num
     tr = np.squeeze(np.nonzero(np.bitwise_not(ts)))     # Training trials -> returns indices
     ts = np.squeeze(np.nonzero(ts))                     # Test trials
-    
+
     # Load network parameters from file.
     saved_pars = np.load(saved_pars_filename)
     param_values = [saved_pars['arr_%d' % i] for i in range(len(saved_pars.files))]
 
+   	images_train = data[:, tr]
+    labels_train = np.squeeze(labels[tr]).astype(np.int32)
+    images_test = (data[:, testIndices]
+    labels_test = np.squeeze(labels[testIndices]).astype(np.int32)
+            
     # Create images in dimensions: [batch, in_height, in_width, in_channels]
     # Conv2d takes input, filter, strides, padding 
-
-
     # Compute the feature maps after each pool layer
+    
     [conv1, conv2, assign_ops] = inference(images, weights=param_values)
 
     # Initial values
