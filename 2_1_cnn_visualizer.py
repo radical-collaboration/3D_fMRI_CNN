@@ -21,15 +21,15 @@ import pdb
 sb.set_style('white')
 sb.set_context('talk')
 sb.set(font_scale=0.5)
-from get_projection import vis_square
+#from get_projection import vis_square
 
 import tensorflow.python.platform
 from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
-from tensorflow.models.image.cifar10 import cifar10_input
-from tensorflow.python.platform import gfile
+#from tensorflow.models.image.cifar10 import cifar10_input
+#from tensorflow.python.platform import gfile
 
 #filename = '../EEG_images_32_timeWin'   # filename for EEG-images
 
@@ -141,9 +141,9 @@ def inference(images, weights=None):
   # conv1
   assign_ops = []
   cnn_layer_shapes = [];
-  cnn_layer_shapes.append([3, 3, 3, 16])
-  cnn_layer_shapes.append([3, 3, 3, 32])
-  cnn_layer_shapes.append([3, 3, 3, 32])
+  cnn_layer_shapes.append([3, 3, 3, 1, 16])
+  cnn_layer_shapes.append([3, 3, 3, 16, 32])
+  cnn_layer_shapes.append([3, 3, 3, 32, 32])
   
   # Conv1_1
   layer_num = 0
@@ -154,7 +154,7 @@ def inference(images, weights=None):
     W_ = tf.constant(weights[layer_num * 2])
     # kernel.assign(W_)
     assign_ops.append(tf.assign(kernel, W_))
-    conv = tf.nn.conv3d(images, kernel, [1, 1, 1, 1], padding='SAME')
+    conv = tf.nn.conv3d(images, kernel, [1 ,1 ,1 ,1], padding='SAME')
     biases = _variable_on_cpu('biases', cnn_layer_shapes[layer_num][3], tf.constant_initializer(0.0))
     # Load baseline parameters from file
     b_ = tf.constant(weights[layer_num * 2 + 1])
@@ -319,9 +319,9 @@ if __name__ == '__main__':
     saved_pars = np.load(saved_pars_filename)
     param_values = [saved_pars['arr_%d' % i] for i in range(len(saved_pars.files))]
 
-    images_train = data[:, tr]
+    images_train = features[:, tr]
     #labels_train = np.squeeze(labels[tr]).astype(np.int32)
-    images_test = data[:, ts]
+    images_test = features[:, ts]
     #labels_test = np.squeeze(labels[testIndices]).astype(np.int32)
             
     # Create images in dimensions: [batch, in_height, in_width, in_channels]
@@ -348,9 +348,9 @@ if __name__ == '__main__':
         best_indices = np.argsort(feat_maps_max)[-9:]
 
          # Plot the feature maps for selected images
-        pl.figure();
+        #pl.figure();
         # pl.subplot(1,3,3); vis_square(np.swapaxes(np.squeeze(select_feature_map[best_indices]), 1, 2))
-        pl.subplot(1,3,3); vis_square((np.squeeze(select_feature_map[best_indices])))
+        #pl.subplot(1,3,3); vis_square((np.squeeze(select_feature_map[best_indices])))
         # Reuse all variables for all iterations following the first one.
         if loop_counter > 0:
             tf.get_variable_scope().reuse_variables()
