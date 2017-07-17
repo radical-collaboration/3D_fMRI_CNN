@@ -40,10 +40,10 @@ def collect_data():
   i=h5py.File('shuffled_output_features.hdf5', 'w') 
 
 
-  dset_runs = f.create_dataset("runs", (380,53,64,37,137))  
+  dset_runs = f.create_dataset("runs", (380,))  
   dset_labels = g.create_dataset("labels", (380,))
   dset_subjects = h.create_dataset("subjects", (380,))
-  dset_data=i.create_dataset("features", (380,))
+  dset_data=i.create_dataset("features", (380, 53, 64, 37, 137), dtype=np.float64)
 
   
   
@@ -51,16 +51,18 @@ def collect_data():
   import random
   SEED = 5
   pdb.set_trace()
-  random.seed(SEED) 
-  random.shuffle(files)
+  #random.seed(SEED) 
+  #random.shuffle(files)
   print files[:30]
   runs, subjects, labels, features  = [], [], [], []
 
+  count = 0
   for filename in files:
+    
     img=nb.load(filename) # data shape is [x,y,z, time]
     data=img.get_data()
-    dset_data[:] = data
-
+    dset_data[count] = data
+    count += 1
     #-1_000353528637_0003_AO_2.nii
 
     split_filename=os.path.basename(filename).split('_')
@@ -126,9 +128,9 @@ def load_data():
 '''
 
 #create_dictionary()
-#collect_data()
+collect_data()
 
-load_data()
+#load_data()
 
 
 
