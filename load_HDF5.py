@@ -12,7 +12,7 @@ import h5py
 import numpy as np
 import pdb
 
-path = '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/output_data' 
+path = '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/output_data'
 
 
 
@@ -33,12 +33,21 @@ def create_dictionary(subject_ID):
   return unique_IDs
 
 def collect_data():
+  
   f=h5py.File('shuffled_output_runs.hdf5','w')
   g=h5py.File('shuffled_output_labels.hdf5','w')
   h=h5py.File('shuffled_output_subjects.hdf5','w')
   i=h5py.File('shuffled_output_features.hdf5', 'w') 
+
+
+  dset_runs = f.create_dataset("runs", (380,53,64,37,137))  
+  dset_labels = g.create_dataset("labels", (380,))
+  dset_subjects = h.create_dataset("subjects", (380,))
+  dset_data=i.create_dataset("features", (380,))
+
   
-  files=glob.glob('/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_LPF_data/output_data/*.nii')
+  
+  files=glob.glob('/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/data/output_data/*.nii')
   import random
   SEED = 5
   pdb.set_trace()
@@ -50,34 +59,25 @@ def collect_data():
   for filename in files:
     img=nb.load(filename) # data shape is [x,y,z, time]
     data=img.get_data()
+    dset_data[:] = data
+
     #-1_000353528637_0003_AO_2.nii
 
     split_filename=os.path.basename(filename).split('_')
     label=split_filename[0]
-    #TR=split_filename[1]
-    
+    dset_labels[:] = label
     subject=split_filename[1]
+    dset_subjects[:] = subject
     run=split_filename[4]
     run=os.path.basename(run).split('.')
     run=run[0]
+    dset_runs[:] = run
+
     runs.append(run)
     labels.append(label)
     subjects.append(subject)
     features.append(data)
 
-  dset_runs = f.create_dataset("runs", data=runs)  
-  dset_labels = g.create_dataset("labels", data=labels)
-  dset_subjects = h.create_dataset("subjects", data=subjects)
-  dset_data=i.create_dataset("features", data=features)
- 
-    
-    #adict=dict(data=data)
-    #grp.create_dataset('%s_%s_%s' % (subject_ID,TR,run) , data=data)
-    #f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['subject_ID']=subject_ID
-    #f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['label']=label
-    #f['individual_TRs/%s_%s_%s' % (subject_ID,TR,run)].attrs['run']=run
-
-    #collect unique subject_IDs and rename them 0-94
   
 def load_data():
   """
