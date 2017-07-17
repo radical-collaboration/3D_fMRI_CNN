@@ -75,10 +75,10 @@ def collect_data():
     run=run[0]
     dset_runs[:] = run
 
-    runs.append(run)
-    labels.append(label)
-    subjects.append(subject)
-    features.append(data)
+    #runs.append(run)
+    #labels.append(label)
+    #subjects.append(subject)
+    #features.append(data)
 
   
 def load_data():
