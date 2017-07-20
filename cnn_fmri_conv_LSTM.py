@@ -28,6 +28,8 @@ from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
 from lasagne.regularization import *
 import h5py
 import pdb
+from multiprocessing import Process, Manager
+import theano.sandbox.cuda
 
 filename = '/home/xsede/users/xs-jdakka/3D_CNN_MRI/test.csv'    # CSV file containing labels and file locations
 
@@ -505,6 +507,9 @@ def main(args):
   
   # fold_pairs[:1]
   for foldNum, fold in enumerate(fold_pairs):
+
+    theano.sandbox.cuda.use(private_args['gpu'])
+
     print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train, subject_train), (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
@@ -528,7 +533,7 @@ def main(args):
     X_test_mean=np.mean(X_test, axis=(0,1))
     X_test_std=np.std(X_test, axis=(0,1))
     X_test_variance=X_test_std**2
-    """
+    
 
     X_train_axis = X_train.shape[1]
     #X_train.reshape([137,304,1,2496]) 
@@ -554,7 +559,7 @@ def main(args):
     # X_test is now in shape (N,T,V)
     # reshape back to (N,T,1,12,13,16)
     X_test = np.reshape(X_test,[X_test_axis,137,1,12,13,16]).swapaxes(0,1)
-    
+    """
 
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
