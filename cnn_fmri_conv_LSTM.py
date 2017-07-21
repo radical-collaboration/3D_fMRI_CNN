@@ -322,7 +322,7 @@ def build_lstm(input_vars, input_shape=None):
 
   network = InputLayer(shape=(input_shape[0], None, num_input_channels, input_shape[-3],
                               input_shape[-2], input_shape[-1]), input_var=input_vars)
-  network = ReshapeLayer(network, ([0], -1, 2496))
+  network = ReshapeLayer(network, ([0], -1, 125504))
   network = DimshuffleLayer(network, (1, 0, 2))
 
   # network = ReshapeLayer(network, (-1, 128))
