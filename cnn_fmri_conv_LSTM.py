@@ -65,23 +65,16 @@ def load_data():
   data: array_like
   """
   ##### Load labels
-  # f = h5py.File(
-  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_runs.hdf5', 'r')
-  # g = h5py.File(
-  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_labels.hdf5', 'r')
-  # h = h5py.File(
-  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_subjects.hdf5', 'r')
-  # i = h5py.File(
-  #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_features.hdf5', 'r')
 
-  f = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_runs.hdf5', 'r')
-  g = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_labels.hdf5', 'r')
-  h = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_subjects.hdf5', 'r')
-  i = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_features.hdf5', 'r')
+  f = h5py.File('/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN/shuffled_output_runs.hdf5', 'r')
+  g = h5py.File('/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN/shuffled_output_labels.hdf5', 'r')
+  h = h5py.File('/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN/shuffled_output_subjects.hdf5', 'r')
+  i = h5py.File('/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN/shuffled_output_features.hdf5', 'r')
+
+  #f = h5py.File('/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_runs.hdf5', 'r')
+  #g = h5py.File('/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_labels.hdf5', 'r')
+  #h = h5py.File('/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_subjects.hdf5', 'r')
+  #i = h5py.File('/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_features.hdf5', 'r')
 
   subjects, labels, features, runs = [], [], [], []
 
@@ -549,6 +542,7 @@ def main(args):
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
+    pdb.set_trace()
 
     # X_train shape = (137, 304, 1, 12, 13, 16)
 
@@ -566,22 +560,22 @@ def main(args):
     X_test_std=np.std(X_test, axis=(0,1))
     X_test_variance=X_test_std**2
     """
-
+   
     # TRAIN
     X_train_axis = X_train.shape[1]
     # X_train.reshape([137,304,1,2496])
-    X_train = np.reshape(X_train, [137, X_train_axis, 1, 2496]).swapaxes(0, 1)
+    X_train = np.reshape(X_train, [137, X_train_axis, 1, 125504]).swapaxes(0, 1)
     X_train_mean = np.mean(X_train, axis=(1, 2), keepdims=True)
     X_train_variance = np.var(X_train, axis=(1, 2), keepdims=True)
     X_train = (X_train - X_train_mean) / (0.001 + X_train_variance)
 
     # X_train is now in shape (N,T,V)
     # reshape back to (N,T,1,12,13,16)
-    X_train = np.reshape(X_train, [X_train_axis, 137, 1, 12, 13, 16]).swapaxes(0, 1)
+    X_train = np.reshape(X_train, [X_train_axis, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
     # VALIDATION
     X_val_axis = X_val.shape[1]
-    X_val = np.reshape(X_val, [137, X_val_axis, 1, 2496]).swapaxes(0, 1)
+    X_val = np.reshape(X_val, [137, X_val_axis, 1, 125504]).swapaxes(0, 1)
 
     X_val_mean = np.mean(X_val, axis=(1, 2), keepdims=True)
     X_val_variance = np.std(X_val, axis=(1, 2), keepdims=True)
@@ -589,11 +583,11 @@ def main(args):
     X_val = (X_val - X_val_mean) / (0.001 + X_val_variance)
     # X_val is now in shape (N,T,V)
     # reshape back to (N,T,1,12,13,16)
-    X_val = np.reshape(X_val, [X_val_axis, 137, 1, 12, 13, 16]).swapaxes(0, 1)
+    X_val = np.reshape(X_val, [X_val_axis, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
     # TEST
     X_test_axis = X_test.shape[1]
-    X_test = np.reshape(X_test, [137, X_test_axis, 1, 2496]).swapaxes(0, 1)
+    X_test = np.reshape(X_test, [137, X_test_axis, 1, 125504]).swapaxes(0, 1)
 
     X_test_mean = np.mean(X_test, axis=(1, 2), keepdims=True)
     X_test_variance = np.std(X_test, axis=(1, 2), keepdims=True)
@@ -601,7 +595,7 @@ def main(args):
     X_test = (X_test - X_test_mean) / (0.001 + X_test_variance)
     # X_test is now in shape (N,T,V)
     # reshape back to (N,T,1,12,13,16)
-    X_test = np.reshape(X_test, [X_test_axis, 137, 1, 12, 13, 16]).swapaxes(0, 1)
+    X_test = np.reshape(X_test, [X_test_axis, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
