@@ -82,7 +82,6 @@ def load_data():
     '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_subjects.hdf5', 'r')
   i = h5py.File(
     '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_features.hdf5', 'r')
-
   subjects, labels, features, runs = [], [], [], []
 
   subjects = h['subjects'][()]
@@ -157,7 +156,7 @@ def reformatInput(data, labels, indices, subjects):
              np.squeeze(subjects[testIndices]).astype(np.int32))]
 
 
-def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(2,1), n_filters_first=16):
+def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(2, 1), n_filters_first=16):
   """
   Builds a VGG style CNN network followed by a fully-connected layer and a softmax layer.
   Stacks are separated by a maxpool layer. Number of kernels in each layer is twice
@@ -549,6 +548,7 @@ def main(args):
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
+    pdb.set_trace()
 
     # X_train shape = (137, 304, 1, 12, 13, 16)
 
@@ -566,44 +566,40 @@ def main(args):
     X_test_std=np.std(X_test, axis=(0,1))
     X_test_variance=X_test_std**2
     """
-
+   
     # TRAIN
-    pdb.set_trace()
-    shape = X_train.shape
     X_train_axis = X_train.shape[1]
-    # X_train.reshape([137,304,1,2496])
-    X_train = np.reshape(X_train, [137, X_train_axis, 1, 2496]).swapaxes(0, 1)
+    # X_train.shape = (137, 308, 1, 37, 53, 64)
+    # Want X_train reshape = (308, 137, 37*53*64)
+    T = X_train.shape[0]
+    N = X_train.shape[1]
+    V = X_train.shape[-1]*X_train.shape[-2]*X_train.shape[-3]
+    X_train = np.reshape(X_train, [T, N, 1, V]).swapaxes(0, 1)
     X_train_mean = np.mean(X_train, axis=(1, 2), keepdims=True)
     X_train_variance = np.var(X_train, axis=(1, 2), keepdims=True)
     X_train = (X_train - X_train_mean) / (0.001 + X_train_variance)
-
-    # X_train is now in shape (N,T,V)
-    # reshape back to (N,T,1,12,13,16)
-    X_train = np.reshape(X_train, [X_train_axis, 137, 1, 12, 13, 16]).swapaxes(0, 1)
+    X_train = np.reshape(X_train, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
     # VALIDATION
-    X_val_axis = X_val.shape[1]
-    X_val = np.reshape(X_val, [137, X_val_axis, 1, 2496]).swapaxes(0, 1)
-
+    T = X_val.shape[0]
+    N = X_val.shape[1]
+    V = X_val.shape[-1]*X_val.shape[-2]*X_val.shape[-3]
+    X_val = np.reshape(X_val, [T, N, 1,V]).swapaxes(0, 1)
     X_val_mean = np.mean(X_val, axis=(1, 2), keepdims=True)
     X_val_variance = np.std(X_val, axis=(1, 2), keepdims=True)
 
     X_val = (X_val - X_val_mean) / (0.001 + X_val_variance)
-    # X_val is now in shape (N,T,V)
-    # reshape back to (N,T,1,12,13,16)
-    X_val = np.reshape(X_val, [X_val_axis, 137, 1, 12, 13, 16]).swapaxes(0, 1)
+    X_val = np.reshape(X_val, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
     # TEST
-    X_test_axis = X_test.shape[1]
-    X_test = np.reshape(X_test, [137, X_test_axis, 1, 2496]).swapaxes(0, 1)
-
+    T = X_test.shape[0]
+    N = X_test.shape[1]
+    V = X_test.shape[-1]*X_test.shape[-2]*X_test.shape[-3]
+    X_test = np.reshape(X_test, [T, N, 1, V]).swapaxes(0, 1)
     X_test_mean = np.mean(X_test, axis=(1, 2), keepdims=True)
     X_test_variance = np.std(X_test, axis=(1, 2), keepdims=True)
-
     X_test = (X_test - X_test_mean) / (0.001 + X_test_variance)
-    # X_test is now in shape (N,T,V)
-    # reshape back to (N,T,1,12,13,16)
-    X_test = np.reshape(X_test, [X_test_axis, 137, 1, 12, 13, 16]).swapaxes(0, 1)
+    X_test = np.reshape(X_test, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
@@ -691,6 +687,8 @@ def main(args):
         # debugging by adding av_train_err and print training loss
         # av_train_err = train_err / train_batches
         # print("  training loss:\t\t{:.6f}".format(av_train_err))
+
+      av_train_err = train_err / train_batches
 
       val_err = 0
       val_acc = 0
