@@ -75,13 +75,13 @@ def load_data():
   #   '/cstor/xsede/users/xs-jdakka/keras_model/3D_fMRI_CNN/standardized_nonLPF_data/shuffled_output_features.hdf5', 'r')
 
   f = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_runs.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_runs.hdf5', 'r')
   g = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_labels.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_labels.hdf5', 'r')
   h = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_subjects.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_subjects.hdf5', 'r')
   i = h5py.File(
-    '/braintree/data2/active/users/bashivan/Data/fmri_conv/shuffled_output_features.hdf5', 'r')
+    '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_features.hdf5', 'r')
 
   subjects, labels, features, runs = [], [], [], []
 
@@ -157,7 +157,7 @@ def reformatInput(data, labels, indices, subjects):
              np.squeeze(subjects[testIndices]).astype(np.int32))]
 
 
-def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(2, 1), n_filters_first=16):
+def build_cnn(input_var=None, input_shape=None, W_init=None, n_layers=(2,1), n_filters_first=16):
   """
   Builds a VGG style CNN network followed by a fully-connected layer and a softmax layer.
   Stacks are separated by a maxpool layer. Number of kernels in each layer is twice
@@ -329,7 +329,7 @@ def build_lstm(input_vars, input_shape=None):
 
   network = InputLayer(shape=(input_shape[0], None, num_input_channels, input_shape[-3],
                               input_shape[-2], input_shape[-1]), input_var=input_vars)
-  network = ReshapeLayer(network, ([0], -1, 2496))
+  network = ReshapeLayer(network, ([0], -1, 125504))
   network = DimshuffleLayer(network, (1, 0, 2))
 
   # network = ReshapeLayer(network, (-1, 128))
@@ -568,6 +568,8 @@ def main(args):
     """
 
     # TRAIN
+    pdb.set_trace()
+    shape = X_train.shape
     X_train_axis = X_train.shape[1]
     # X_train.reshape([137,304,1,2496])
     X_train = np.reshape(X_train, [137, X_train_axis, 1, 2496]).swapaxes(0, 1)
@@ -632,8 +634,8 @@ def main(args):
 
     loss = loss.mean()
     # reg_factor = 0.01
-    # l1_penalty = regularize_network_params(network, l1) * reg_factor
-    # loss += l1_penalty
+    # l2_penalty = regularize_network_params(network, l2) * reg_factor
+    # loss += l2_penalty
 
     # We could add some weight decay as well here, see lasagne.regularization.
 
@@ -689,8 +691,6 @@ def main(args):
         # debugging by adding av_train_err and print training loss
         # av_train_err = train_err / train_batches
         # print("  training loss:\t\t{:.6f}".format(av_train_err))
-
-      av_train_err = train_err / train_batches
 
       val_err = 0
       val_acc = 0
