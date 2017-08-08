@@ -544,8 +544,17 @@ def main(args):
   sub_process_9_args = {}
   sub_process_10_args = {}
 
-  for i in range(10):
-    sub_process_str(i)_args['gpu'] = 'gpu{0}'.format(i)
+  sub_process_1_args['gpu'] = 'gpu0'
+  sub_process_2_args['gpu'] = 'gpu1'
+  sub_process_3_args['gpu'] = 'gpu2'
+  sub_process_4_args['gpu'] = 'gpu3'
+  sub_process_5_args['gpu'] = 'gpu4'
+  sub_process_6_args['gpu'] = 'gpu5'
+  sub_process_7_args['gpu'] = 'gpu6'
+  sub_process_8_args['gpu'] = 'gpu7'
+  sub_process_9_args['gpu'] = 'gpu8'
+  sub_process_10_args['gpu'] = 'gpu9'
+  
     
   for foldNum, fold in enumerate(fold_pairs):
     def f(foldNum,fold,private_args):
