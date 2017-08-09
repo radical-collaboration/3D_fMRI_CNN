@@ -18,14 +18,6 @@ import nibabel as nb
 from sklearn.cross_validation import StratifiedKFold
 import theano
 import theano.tensor as T
-import lasagne
-from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
-from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
-from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
-from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
-from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
-from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
-from lasagne.regularization import *
 import h5py
 import scipy.io
 import pdb
