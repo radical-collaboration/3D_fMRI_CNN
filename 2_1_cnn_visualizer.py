@@ -154,7 +154,7 @@ def inference(images, weights=None):
     W_ = tf.constant(weights[layer_num * 2])
     # kernel.assign(W_)
     assign_ops.append(tf.assign(kernel, W_))
-    conv = tf.nn.conv3d(images, kernel, [1 ,1 ,1 ,1], padding='SAME')
+    conv = tf.nn.conv3d(images, kernel, [1, 1, 1, 1], padding='SAME')
     biases = _variable_on_cpu('biases', cnn_layer_shapes[layer_num][3], tf.constant_initializer(0.0))
     # Load baseline parameters from file
     b_ = tf.constant(weights[layer_num * 2 + 1])

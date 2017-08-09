@@ -9,6 +9,7 @@ from __future__ import print_function
 import sys
 import numpy as np
 import time
+
 np.random.seed(1234)
 import csv
 import os
@@ -17,24 +18,11 @@ import nibabel as nb
 from sklearn.cross_validation import StratifiedKFold
 import theano
 import theano.tensor as T
-import lasagne
-from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
-from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
-from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
-from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
-from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
-from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
-from lasagne.regularization import *
 import h5py
 import scipy.io
 import pdb
 import logging
 from multiprocessing import Process, Manager
-import theano.sandbox.cuda
-
-def log_info_string(input_string):
-  print(input_string)
-  logging.info(input_string)
 
 # Training parameters
 DEFAULT_NUM_EPOCHS = 10  # Number of epochs for training
@@ -47,10 +35,12 @@ DEFAULT_NUM_FOLDS = 10  # Default number of folds in cross validation
 
 num_steps = 64
 
- ##################### Build the neural network model #######################
+
+##################### Build the neural network model #######################
 # This script supports three types of models. For each one, we define a
 # function that takes a Theano variable representing the input and returns
 # the output layer of a neural network model built in Lasagne.
+
 
 def load_data():
   """
@@ -70,9 +60,9 @@ def load_data():
   g = h5py.File(
      '/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN/shuffled_output_labels.hdf5', 'r')
   h = h5py.File(
-     '/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN/shuffled_output_subjects.hdf5', 'r')
+     '/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN//shuffled_output_subjects.hdf5', 'r')
   i = h5py.File(
-     '/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN/shuffled_output_features.hdf5', 'r')
+     '/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN//shuffled_output_features.hdf5', 'r')
 
   #f = h5py.File(
   #  '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_runs.hdf5', 'r')
@@ -138,15 +128,15 @@ def reformatInput(data, labels, indices, subjects):
   # map_valid=subjects[validIndices]
   # map_test = subjects[testIndices]
   # set(map_train).intersection(map_valid)
-  
+
   # Shuffling training data
   # shuffledIndices = np.random.permutation(len(trainIndices))
   # trainIndices = trainIndices[shuffledIndices]
   if data.ndim == 5:
     return [(data[trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32)),
             (data[validIndices], np.squeeze(labels[validIndices]).astype(np.int32)),
-            (data[testIndices], np.squeeze(labels[testIndices]).astype(np.int32))]  
-	   
+            (data[testIndices], np.squeeze(labels[testIndices]).astype(np.int32))]
+
   elif data.ndim == 6:
     return [(data[:, trainIndices], np.squeeze(labels[trainIndices]).astype(np.int32),
              np.squeeze(subjects[trainIndices]).astype(np.int32)),
@@ -287,13 +277,11 @@ def build_convpool_lstm(input_vars, input_shape=None):
 
   # Input to LSTM should have the shape as (batch size, SEQ_LENGTH, num_features)
 
-  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip,nonlinearity=lasagne.nonlinearities.sigmoid)
+  convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip, nonlinearity=lasagne.nonlinearities.tanh)
 
+  # convpool = lasagne.layers.dropout(convpool, p=.3)
 
-  #convpool = lasagne.layers.dropout(convpool, p=.3)
-
-  convpool = LSTMLayer(convpool, num_units=32, grad_clipping=grad_clip,nonlinearity=lasagne.nonlinearities.sigmoid)
-
+  convpool = LSTMLayer(convpool, num_units=128, grad_clipping=grad_clip, nonlinearity=lasagne.nonlinearities.sigmoid)
 
   # After LSTM layer you either need to reshape or slice it (depending on whether you
   # want to keep all predictions or just the last prediction.
@@ -303,15 +291,15 @@ def build_convpool_lstm(input_vars, input_shape=None):
   convpool = SliceLayer(convpool, -1, 1)  # Selecting the last prediction
 
   # A fully-connected layer of 256 units with 50% dropout on its inputs:
-  convpool = DenseLayer(lasagne.layers.dropout(convpool, p=.5), num_units=256,
-                        nonlinearity=lasagne.nonlinearities.rectify)
-  
+  convpool = DenseLayer(convpool, num_units=256, nonlinearity=lasagne.nonlinearities.rectify)
+
   # We only need the final prediction, we isolate that quantity and feed it
   # to the next layer.
 
   # And, finally, the output layer with 50% dropout on its inputs:
-  convpool = DenseLayer(lasagne.layers.dropout(convpool, p=.5), num_units=num_classes,                    nonlinearity=lasagne.nonlinearities.softmax)
-  
+  convpool = DenseLayer(convpool, num_units=num_classes, nonlinearity=lasagne.nonlinearities.softmax)
+  # convpool = DenseLayer(convpool, num_units=1, nonlinearity=lasagne.nonlinearities.sigmoid)
+
   return convpool
 
 
@@ -478,6 +466,7 @@ def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=Fals
     yield inputs[:, excerpt], targets[excerpt]
 '''
 
+
 # ############################## Main program ################################
 def main(args):
   global num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels
@@ -491,17 +480,10 @@ def main(args):
   grad_clip = int(args.grad_clip)
   model = args.model
   num_input_channels = int(args.num_input_channels)
-  fold_to_run = int(args.fold_to_run)
-  if fold_to_run == -1:
-    fold_to_run = range(num_folds)
-  else:
-    fold_to_run = [fold_to_run]
-
-  logging.basicConfig(filename='joblog_LSO{0}.log'.format(''.join([str(i) for i in fold_to_run])), level=logging.DEBUG)
-
-  log_info_string('Model type is : {0}'.format(model))
+  
+  print('Model type is : {0}'.format(model))
   # Load the dataset
-  log_info_string("Loading data...")
+  print("Loading data...")
 
   data, labels, subjects, runs = load_data()
   fold_pairs = []
@@ -537,11 +519,59 @@ def main(args):
   validEpochAccu = np.zeros((len(fold_pairs), num_epochs))
   testEpochAccu = np.zeros((len(fold_pairs), num_epochs))
 
-  log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
+  #print('Start working on fold(s) {0}'.format(fold_to_run))
 
-  for foldNum, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
+
+
+  #private arguments for each sub-process
+  
+  sub_process_1_args = {}
+  sub_process_2_args = {}
+  sub_process_3_args = {}
+  sub_process_4_args = {}
+  sub_process_5_args = {}
+  sub_process_6_args = {}
+  sub_process_7_args = {}
+  sub_process_8_args = {}
+  sub_process_9_args = {}
+  sub_process_10_args = {}
+
+  sub_process_1_args['gpu'] = 'gpu0'
+  sub_process_2_args['gpu'] = 'gpu1'
+  sub_process_3_args['gpu'] = 'gpu2'
+  sub_process_4_args['gpu'] = 'gpu3'
+  sub_process_5_args['gpu'] = 'gpu4'
+  sub_process_6_args['gpu'] = 'gpu5'
+  sub_process_7_args['gpu'] = 'gpu6'
+  sub_process_8_args['gpu'] = 'gpu7'
+  sub_process_9_args['gpu'] = 'gpu8'
+  sub_process_10_args['gpu'] = 'gpu9'
+  
+  
+  def f(foldNum,fold,private_args):
+    import theano.sandbox.cuda
     theano.sandbox.cuda.use(private_args['gpu'])
-    log_info_string('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
+    import csv
+    import os
+    import argparse
+    import nibabel as nb
+    from sklearn.cross_validation import StratifiedKFold
+    import theano
+    import theano.tensor as T
+    import lasagne
+    from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
+    from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
+    from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
+    from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
+    from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
+    from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
+    from lasagne.regularization import *
+    import h5py
+    import scipy.io
+    import pdb
+    #print('process {0}'.format())
+
+    print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train, subject_train), \
     (X_val, y_val, subject_val), \
@@ -550,7 +580,7 @@ def main(args):
     X_train = X_train.astype("float32", casting='unsafe')
     X_val = X_val.astype("float32", casting='unsafe')
     X_test = X_test.astype("float32", casting='unsafe')
-
+    #pdb.set_trace()
 
     # X_train shape = (137, 304, 1, 12, 13, 16)
 
@@ -568,12 +598,11 @@ def main(args):
     X_test_std=np.std(X_test, axis=(0,1))
     X_test_variance=X_test_std**2
     """
-
+   
     # TRAIN
-
+    X_train_axis = X_train.shape[1]
     # X_train.shape = (137, 308, 1, 37, 53, 64)
     # Want X_train reshape = (308, 137, 37*53*64)
-
     T_1 = X_train.shape[0]
     N = X_train.shape[1]
     V = X_train.shape[-1]*X_train.shape[-2]*X_train.shape[-3]
@@ -604,16 +633,12 @@ def main(args):
     X_test = (X_test - X_test_mean) / (0.001 + X_test_variance)
     X_test = np.reshape(X_test, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
-
-    X_train = X_train.astype("float32", casting='unsafe')
-    X_val = X_val.astype("float32", casting='unsafe')
-    X_test = X_test.astype("float32", casting='unsafe')
     # Prepare Theano variables for inputs and targets
     input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
     target_var = T.ivector('targets')
     # Create neural network model (depending on first command line parameter)
 
-    log_info_string("Building model and compiling functions...")
+    print("Building model and compiling functions...")
     # Building the appropriate model
 
     input_shape = list(X_train.shape)
@@ -673,7 +698,7 @@ def main(args):
     lr_decay = 1
 
     # Finally, launch the training loop.
-    log_info_string("Starting training...")
+    print("Starting training...")
     best_validation_accu = 0
     # We iterate over epochs:
     for epoch in range(num_epochs):
@@ -717,11 +742,11 @@ def main(args):
       av_val_acc = val_acc / val_batches
 
       # Then we print the results for this epoch:
-      log_info_string("Epoch {} of {} took {:.3f}s".format(
+      print("Epoch {} of {} took {:.3f}s".format(
         epoch + 1, num_epochs, time.time() - start_time))
-      log_info_string("  training loss:\t\t{:.6f}".format(av_train_err))
-      log_info_string("  validation loss:\t\t{:.6f}".format(av_val_err))
-      log_info_string("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+      print("  training loss:\t\t{:.6f}".format(av_train_err))
+      print("  validation loss:\t\t{:.6f}".format(av_val_err))
+      print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
 
       sys.stdout.flush()
 
@@ -756,19 +781,38 @@ def main(args):
       testEpochAccu[foldNum, epoch] = av_test_acc * 100
     validScores.append(best_validation_accu * 100)
     testScores.append(av_test_acc * 100)
-    log_info_string('-' * 50)
-    log_info_string("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
-    log_info_string("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_{0}_results_adam_{1}_LSO_fold{2}'.format(model, base_lr, ''.join([str(i) for i in fold_to_run])),
-                   {
-                     'folds': fold_to_run,
-                     'validAccu': validScores,
-                     'testAccu': testScores,
-                     'trainLoss': trainLoss,
-                     'validLoss': validLoss,
-                     'validEpochAccu': validEpochAccu,
-                     'testEpochAccu': testEpochAccu
-                   })
+    print('-' * 50)
+    print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
+    print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
+  p1 = Process(target = f, args=(1, fold_pairs[0], sub_process_1_args,))
+  p2 = Process(target = f, args=(2, fold_pairs[1], sub_process_2_args,))
+  p3 = Process(target = f, args=(3, fold_pairs[2], sub_process_3_args,))
+  p4 = Process(target = f, args=(4, fold_pairs[3], sub_process_4_args,))
+  p5 = Process(target = f, args=(5, fold_pairs[4], sub_process_5_args,))
+  p6 = Process(target = f, args=(6, fold_pairs[5], sub_process_6_args,))
+  p7 = Process(target = f, args=(7, fold_pairs[6], sub_process_7_args,))
+  p8 = Process(target = f, args=(8, fold_pairs[7], sub_process_8_args,))
+  p9 = Process(target = f, args=(9, fold_pairs[8], sub_process_9_args,))
+  p10 = Process(target = f, args=(10, fold_pairs[9], sub_process_10_args,))
+
+  p1.start()
+  p2.start()
+  p3.start()
+  p4.start()
+  p5.start()
+  p6.start()
+  p7.start()
+  p8.start()
+  p9.start()
+  p10.start()
+
+  scipy.io.savemat('cnn_lasg_{0}_results'.format(model),
+                   {'validAccu': validScores,
+                    'testAccu': testScores,
+                    'trainLoss': trainLoss,
+                    'validLoss': validLoss,
+                    'validEpochAccu': validEpochAccu
+                    })
 
 
 if __name__ == '__main__':
