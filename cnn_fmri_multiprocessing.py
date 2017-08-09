@@ -556,264 +556,263 @@ def main(args):
   sub_process_10_args['gpu'] = 'gpu9'
   
   
-  for foldNum, fold in enumerate(fold_pairs):
-    def f(foldNum,fold,private_args):
-      import theano.sandbox.cuda
-      theano.sandbox.cuda.use(private_args['gpu'])
-      import csv
-      import os
-      import argparse
-      import nibabel as nb
-      from sklearn.cross_validation import StratifiedKFold
-      import theano
-      import theano.tensor as T
-      import lasagne
-      from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
-      from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
-      from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
-      from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
-      from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
-      from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
-      from lasagne.regularization import *
-      import h5py
-      import scipy.io
-      import pdb
-      #print('process {0}'.format())
+  def f(foldNum,fold,private_args):
+    import theano.sandbox.cuda
+    theano.sandbox.cuda.use(private_args['gpu'])
+    import csv
+    import os
+    import argparse
+    import nibabel as nb
+    from sklearn.cross_validation import StratifiedKFold
+    import theano
+    import theano.tensor as T
+    import lasagne
+    from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
+    from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
+    from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
+    from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
+    from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
+    from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
+    from lasagne.regularization import *
+    import h5py
+    import scipy.io
+    import pdb
+    #print('process {0}'.format())
 
-      print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
-      # Divide the dataset into train, validation and test sets
-      (X_train, y_train, subject_train), \
-      (X_val, y_val, subject_val), \
-      (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
+    print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
+    # Divide the dataset into train, validation and test sets
+    (X_train, y_train, subject_train), \
+    (X_val, y_val, subject_val), \
+    (X_test, y_test, subject_test) = reformatInput(data, labels, fold, subjects)
 
-      X_train = X_train.astype("float32", casting='unsafe')
-      X_val = X_val.astype("float32", casting='unsafe')
-      X_test = X_test.astype("float32", casting='unsafe')
-      #pdb.set_trace()
+    X_train = X_train.astype("float32", casting='unsafe')
+    X_val = X_val.astype("float32", casting='unsafe')
+    X_test = X_test.astype("float32", casting='unsafe')
+    #pdb.set_trace()
 
-      # X_train shape = (137, 304, 1, 12, 13, 16)
+    # X_train shape = (137, 304, 1, 12, 13, 16)
 
-      '''reshape X_train, X_val, X_test in dimensions (N,T,V) from (137,samples,dims)'''
-      """
-      X_train_mean=np.mean(X_train, axis=(0,1))
-      X_train_std=np.std(X_train, axis=(0,1))
-      X_train_variance=X_train_std**2
+    '''reshape X_train, X_val, X_test in dimensions (N,T,V) from (137,samples,dims)'''
+    """
+    X_train_mean=np.mean(X_train, axis=(0,1))
+    X_train_std=np.std(X_train, axis=(0,1))
+    X_train_variance=X_train_std**2
 
-      X_val_mean=np.mean(X_val, axis=(0,1))
-      X_val_std=np.std(X_val,axis=(0,1))
-      X_val_variance=X_val_std**2
+    X_val_mean=np.mean(X_val, axis=(0,1))
+    X_val_std=np.std(X_val,axis=(0,1))
+    X_val_variance=X_val_std**2
 
-      X_test_mean=np.mean(X_test, axis=(0,1))
-      X_test_std=np.std(X_test, axis=(0,1))
-      X_test_variance=X_test_std**2
-      """
-     
-      # TRAIN
-      X_train_axis = X_train.shape[1]
-      # X_train.shape = (137, 308, 1, 37, 53, 64)
-      # Want X_train reshape = (308, 137, 37*53*64)
-      T_1 = X_train.shape[0]
-      N = X_train.shape[1]
-      V = X_train.shape[-1]*X_train.shape[-2]*X_train.shape[-3]
-      X_train = np.reshape(X_train, [T_1, N, 1, V]).swapaxes(0, 1)
-      X_train_mean = np.mean(X_train, axis=(1, 2), keepdims=True)
-      X_train_variance = np.var(X_train, axis=(1, 2), keepdims=True)
-      X_train = (X_train - X_train_mean) / (0.001 + X_train_variance)
-      X_train = np.reshape(X_train, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
+    X_test_mean=np.mean(X_test, axis=(0,1))
+    X_test_std=np.std(X_test, axis=(0,1))
+    X_test_variance=X_test_std**2
+    """
+   
+    # TRAIN
+    X_train_axis = X_train.shape[1]
+    # X_train.shape = (137, 308, 1, 37, 53, 64)
+    # Want X_train reshape = (308, 137, 37*53*64)
+    T_1 = X_train.shape[0]
+    N = X_train.shape[1]
+    V = X_train.shape[-1]*X_train.shape[-2]*X_train.shape[-3]
+    X_train = np.reshape(X_train, [T_1, N, 1, V]).swapaxes(0, 1)
+    X_train_mean = np.mean(X_train, axis=(1, 2), keepdims=True)
+    X_train_variance = np.var(X_train, axis=(1, 2), keepdims=True)
+    X_train = (X_train - X_train_mean) / (0.001 + X_train_variance)
+    X_train = np.reshape(X_train, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
-      # VALIDATION
-      T_1 = X_val.shape[0]
-      N = X_val.shape[1]
-      V = X_val.shape[-1]*X_val.shape[-2]*X_val.shape[-3]
-      X_val = np.reshape(X_val, [T_1, N, 1,V]).swapaxes(0, 1)
-      X_val_mean = np.mean(X_val, axis=(1, 2), keepdims=True)
-      X_val_variance = np.std(X_val, axis=(1, 2), keepdims=True)
+    # VALIDATION
+    T_1 = X_val.shape[0]
+    N = X_val.shape[1]
+    V = X_val.shape[-1]*X_val.shape[-2]*X_val.shape[-3]
+    X_val = np.reshape(X_val, [T_1, N, 1,V]).swapaxes(0, 1)
+    X_val_mean = np.mean(X_val, axis=(1, 2), keepdims=True)
+    X_val_variance = np.std(X_val, axis=(1, 2), keepdims=True)
 
-      X_val = (X_val - X_val_mean) / (0.001 + X_val_variance)
-      X_val = np.reshape(X_val, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
+    X_val = (X_val - X_val_mean) / (0.001 + X_val_variance)
+    X_val = np.reshape(X_val, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
-      # TEST
-      T_1 = X_test.shape[0]
-      N = X_test.shape[1]
-      V = X_test.shape[-1]*X_test.shape[-2]*X_test.shape[-3]
-      X_test = np.reshape(X_test, [T_1, N, 1, V]).swapaxes(0, 1)
-      X_test_mean = np.mean(X_test, axis=(1, 2), keepdims=True)
-      X_test_variance = np.std(X_test, axis=(1, 2), keepdims=True)
-      X_test = (X_test - X_test_mean) / (0.001 + X_test_variance)
-      X_test = np.reshape(X_test, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
+    # TEST
+    T_1 = X_test.shape[0]
+    N = X_test.shape[1]
+    V = X_test.shape[-1]*X_test.shape[-2]*X_test.shape[-3]
+    X_test = np.reshape(X_test, [T_1, N, 1, V]).swapaxes(0, 1)
+    X_test_mean = np.mean(X_test, axis=(1, 2), keepdims=True)
+    X_test_variance = np.std(X_test, axis=(1, 2), keepdims=True)
+    X_test = (X_test - X_test_mean) / (0.001 + X_test_variance)
+    X_test = np.reshape(X_test, [N, 137, 1, 37, 53, 64]).swapaxes(0, 1)
 
-      # Prepare Theano variables for inputs and targets
-      input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
-      target_var = T.ivector('targets')
-      # Create neural network model (depending on first command line parameter)
+    # Prepare Theano variables for inputs and targets
+    input_var = T.TensorType('floatX', ((False,) * 6))()  # Notice the () at the end
+    target_var = T.ivector('targets')
+    # Create neural network model (depending on first command line parameter)
 
-      print("Building model and compiling functions...")
-      # Building the appropriate model
+    print("Building model and compiling functions...")
+    # Building the appropriate model
 
-      input_shape = list(X_train.shape)
-      input_shape[0] = num_steps
+    input_shape = list(X_train.shape)
+    input_shape[0] = num_steps
 
-      if model == '1dconv':
-        network = build_convpool_conv1d(input_var, input_shape)
-      elif model == 'maxpool':
-        network = build_convpool_max(input_var, input_shape)
-      elif model == 'lstm':
-        network = build_convpool_lstm(input_var, input_shape)
-      elif model == 'mix':
-        network = build_convpool_mix(input_var, input_shape)
-      elif model == 'lstm2':
-        network = build_lstm(input_var, input_shape)
-      # Create a loss expression for training, i.e., a scalar objective we want
-      # to minimize (for our multi-class problem, it is the cross-entropy loss):
-      prediction = lasagne.layers.get_output(network)
-      loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-      # loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
+    if model == '1dconv':
+      network = build_convpool_conv1d(input_var, input_shape)
+    elif model == 'maxpool':
+      network = build_convpool_max(input_var, input_shape)
+    elif model == 'lstm':
+      network = build_convpool_lstm(input_var, input_shape)
+    elif model == 'mix':
+      network = build_convpool_mix(input_var, input_shape)
+    elif model == 'lstm2':
+      network = build_lstm(input_var, input_shape)
+    # Create a loss expression for training, i.e., a scalar objective we want
+    # to minimize (for our multi-class problem, it is the cross-entropy loss):
+    prediction = lasagne.layers.get_output(network)
+    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+    # loss = lasagne.objectives.binary_crossentropy(prediction, target_var)
 
-      loss = loss.mean()
-      # reg_factor = 0.01
-      # l2_penalty = regularize_network_params(network, l2) * reg_factor
-      # loss += l2_penalty
+    loss = loss.mean()
+    # reg_factor = 0.01
+    # l2_penalty = regularize_network_params(network, l2) * reg_factor
+    # loss += l2_penalty
 
-      # We could add some weight decay as well here, see lasagne.regularization.
+    # We could add some weight decay as well here, see lasagne.regularization.
 
-      # Create update expressions for training, i.e., how to modify the
-      # parameters at each training step.
-      params = lasagne.layers.get_all_params(network, trainable=True)
-      learning_rate = T.scalar(name='learning_rate')
-      # updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate, momentum=0.9)
-      updates = lasagne.updates.adam(loss, params, learning_rate=learning_rate)
+    # Create update expressions for training, i.e., how to modify the
+    # parameters at each training step.
+    params = lasagne.layers.get_all_params(network, trainable=True)
+    learning_rate = T.scalar(name='learning_rate')
+    # updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate, momentum=0.9)
+    updates = lasagne.updates.adam(loss, params, learning_rate=learning_rate)
 
-      # Create a loss expression for validation/testing. The crucial difference
-      # here is that we do a deterministic forward pass through the network,
-      # disabling dropout layers.
-      test_prediction = lasagne.layers.get_output(network, deterministic=True)
-      test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
-                                                              target_var)
-      # test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var)
-      test_loss = test_loss.mean()
+    # Create a loss expression for validation/testing. The crucial difference
+    # here is that we do a deterministic forward pass through the network,
+    # disabling dropout layers.
+    test_prediction = lasagne.layers.get_output(network, deterministic=True)
+    test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
+                                                            target_var)
+    # test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var)
+    test_loss = test_loss.mean()
 
-      # As a bonus, also create an expression for the classification accuracy:
-      test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-                        dtype=theano.config.floatX)
+    # As a bonus, also create an expression for the classification accuracy:
+    test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
+                      dtype=theano.config.floatX)
 
-      # Compile a function performing a training step on a mini-batch (by giving
-      # the updates dictionary) and returning the corresponding training loss:
-      train_fn = theano.function([input_var, target_var, learning_rate], [loss, learning_rate], updates=updates)
+    # Compile a function performing a training step on a mini-batch (by giving
+    # the updates dictionary) and returning the corresponding training loss:
+    train_fn = theano.function([input_var, target_var, learning_rate], [loss, learning_rate], updates=updates)
 
-      # Compile a second function computing the validation loss and accuracy:
-      val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+    # Compile a second function computing the validation loss and accuracy:
+    val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
-      base_lr = 0.001
-      lr_decay = 1
+    base_lr = 0.001
+    lr_decay = 1
 
-      # Finally, launch the training loop.
-      print("Starting training...")
-      best_validation_accu = 0
-      # We iterate over epochs:
-      for epoch in range(num_epochs):
-        # In each epoch, we do a full pass over the training data:
-        train_err = 0
-        train_batches = 0
-        start_time = time.time()
-        lr = base_lr * (lr_decay ** epoch)
+    # Finally, launch the training loop.
+    print("Starting training...")
+    best_validation_accu = 0
+    # We iterate over epochs:
+    for epoch in range(num_epochs):
+      # In each epoch, we do a full pass over the training data:
+      train_err = 0
+      train_batches = 0
+      start_time = time.time()
+      lr = base_lr * (lr_decay ** epoch)
 
-        for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
-          inputs, targets = batch
-          # this is the forwards pass -> need to time
-          #	train_err += train_fn(inputs, targets,lr)
-          tmp, lr = train_fn(inputs, targets, lr)
-          train_err += tmp
+      for batch in iterate_minibatches(X_train, y_train, subject_train, batch_size, shuffle=False):
+        inputs, targets = batch
+        # this is the forwards pass -> need to time
+        #	train_err += train_fn(inputs, targets,lr)
+        tmp, lr = train_fn(inputs, targets, lr)
+        train_err += tmp
 
-          train_batches += 1
-          # debugging by adding av_train_err and print training loss
-          # av_train_err = train_err / train_batches
-          # print("  training loss:\t\t{:.6f}".format(av_train_err))
+        train_batches += 1
+        # debugging by adding av_train_err and print training loss
+        # av_train_err = train_err / train_batches
+        # print("  training loss:\t\t{:.6f}".format(av_train_err))
 
-        av_train_err = train_err / train_batches
+      av_train_err = train_err / train_batches
 
-        val_err = 0
-        val_acc = 0
-        val_batches = 0
-        for batch in iterate_minibatches(X_val, y_val, subject_val, batch_size, shuffle=False):
+      val_err = 0
+      val_acc = 0
+      val_batches = 0
+      for batch in iterate_minibatches(X_val, y_val, subject_val, batch_size, shuffle=False):
+        inputs, targets = batch
+        err, acc = val_fn(inputs, targets)
+        # val_fn is the backwards pass -> need to measure
+        val_err += err
+        val_acc += acc
+        val_batches += 1
+
+        # debugging by adding av_val_err and av_val_acc
+      av_val_err = val_err / val_batches
+      av_val_acc = val_acc / val_batches
+
+      av_train_err = train_err / train_batches
+      av_val_err = val_err / val_batches
+      av_val_acc = val_acc / val_batches
+
+      # Then we print the results for this epoch:
+      print("Epoch {} of {} took {:.3f}s".format(
+        epoch + 1, num_epochs, time.time() - start_time))
+      print("  training loss:\t\t{:.6f}".format(av_train_err))
+      print("  validation loss:\t\t{:.6f}".format(av_val_err))
+      print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+
+      sys.stdout.flush()
+
+      trainLoss[foldNum, epoch] = av_train_err
+      validLoss[foldNum, epoch] = av_val_err
+      validEpochAccu[foldNum, epoch] = av_val_acc * 100
+
+      if av_val_acc > best_validation_accu:
+        best_validation_accu = av_val_acc
+
+        # After training, we compute and print the test error:
+        test_err = 0
+        test_acc = 0
+        test_batches = 0
+        for batch in iterate_minibatches(X_test, y_test, subject_test, batch_size, shuffle=False):
           inputs, targets = batch
           err, acc = val_fn(inputs, targets)
-          # val_fn is the backwards pass -> need to measure
-          val_err += err
-          val_acc += acc
-          val_batches += 1
+          test_err += err
+          test_acc += acc
+          test_batches += 1
 
-          # debugging by adding av_val_err and av_val_acc
-        av_val_err = val_err / val_batches
-        av_val_acc = val_acc / val_batches
-
-        av_train_err = train_err / train_batches
-        av_val_err = val_err / val_batches
-        av_val_acc = val_acc / val_batches
-
-        # Then we print the results for this epoch:
-        print("Epoch {} of {} took {:.3f}s".format(
-          epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6f}".format(av_train_err))
-        print("  validation loss:\t\t{:.6f}".format(av_val_err))
-        print("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+        av_test_err = test_err / test_batches
+        av_test_acc = test_acc / test_batches
+        log_info_string("Test results:")
+        log_info_string("  test loss:\t\t\t{:.6f}".format(av_test_err))
+        log_info_string("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
 
         sys.stdout.flush()
 
-        trainLoss[foldNum, epoch] = av_train_err
-        validLoss[foldNum, epoch] = av_val_err
-        validEpochAccu[foldNum, epoch] = av_val_acc * 100
+        # Dump the network weights to a file like this:
+        np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
+      testEpochAccu[foldNum, epoch] = av_test_acc * 100
+    validScores.append(best_validation_accu * 100)
+    testScores.append(av_test_acc * 100)
+    print('-' * 50)
+    print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
+    print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
+  p1 = Process(target = f, args=(1, fold_pairs[0], sub_process_1_args,))
+  p2 = Process(target = f, args=(2, fold_pairs[1], sub_process_2_args,))
+  p3 = Process(target = f, args=(3, fold_pairs[2], sub_process_3_args,))
+  p4 = Process(target = f, args=(4, fold_pairs[3], sub_process_4_args,))
+  p5 = Process(target = f, args=(5, fold_pairs[4], sub_process_5_args,))
+  p6 = Process(target = f, args=(6, fold_pairs[5], sub_process_6_args,))
+  p7 = Process(target = f, args=(7, fold_pairs[6], sub_process_7_args,))
+  p8 = Process(target = f, args=(8, fold_pairs[7], sub_process_8_args,))
+  p9 = Process(target = f, args=(9, fold_pairs[8], sub_process_9_args,))
+  p10 = Process(target = f, args=(10, fold_pairs[9], sub_process_10_args,))
 
-        if av_val_acc > best_validation_accu:
-          best_validation_accu = av_val_acc
-
-          # After training, we compute and print the test error:
-          test_err = 0
-          test_acc = 0
-          test_batches = 0
-          for batch in iterate_minibatches(X_test, y_test, subject_test, batch_size, shuffle=False):
-            inputs, targets = batch
-            err, acc = val_fn(inputs, targets)
-            test_err += err
-            test_acc += acc
-            test_batches += 1
-
-          av_test_err = test_err / test_batches
-          av_test_acc = test_acc / test_batches
-          log_info_string("Test results:")
-          log_info_string("  test loss:\t\t\t{:.6f}".format(av_test_err))
-          log_info_string("  test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-
-          sys.stdout.flush()
-
-          # Dump the network weights to a file like this:
-          np.savez('weights_lasg_{0}_{1}'.format(model, foldNum), *lasagne.layers.get_all_param_values(network))
-        testEpochAccu[foldNum, epoch] = av_test_acc * 100
-      validScores.append(best_validation_accu * 100)
-      testScores.append(av_test_acc * 100)
-      print('-' * 50)
-      print("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
-      print("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-    p1 = Process(target = f, args=(foldNum, fold, sub_process_1_args,))
-    p2 = Process(target = f, args=(foldNum, fold, sub_process_2_args,))
-    p3 = Process(target = f, args=(foldNum, fold, sub_process_3_args,))
-    p4 = Process(target = f, args=(foldNum, fold, sub_process_4_args,))
-    p5 = Process(target = f, args=(foldNum, fold, sub_process_5_args,))
-    p6 = Process(target = f, args=(foldNum, fold, sub_process_6_args,))
-    p7 = Process(target = f, args=(foldNum, fold, sub_process_7_args,))
-    p8 = Process(target = f, args=(foldNum, fold, sub_process_8_args,))
-    p9 = Process(target = f, args=(foldNum, fold, sub_process_9_args,))
-    p10 = Process(target = f, args=(foldNum, fold, sub_process_10_args,))
-
-    p1.start()
-    p2.start()
-    p3.start()
-    p4.start()
-    p5.start()
-    p6.start()
-    p7.start()
-    p8.start()
-    p9.start()
-    p10.start()
+  p1.start()
+  p2.start()
+  p3.start()
+  p4.start()
+  p5.start()
+  p6.start()
+  p7.start()
+  p8.start()
+  p9.start()
+  p10.start()
 
   scipy.io.savemat('cnn_lasg_{0}_results'.format(model),
                    {'validAccu': validScores,
