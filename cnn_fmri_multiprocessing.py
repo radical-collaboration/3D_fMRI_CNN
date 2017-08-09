@@ -529,7 +529,7 @@ def main(args):
 
   #print('Start working on fold(s) {0}'.format(fold_to_run))
 
-  manager = Manager()
+
 
   #private arguments for each sub-process
   
@@ -560,6 +560,24 @@ def main(args):
     def f(foldNum,fold,private_args):
       import theano.sandbox.cuda
       theano.sandbox.cuda.use(private_args['gpu'])
+      import csv
+      import os
+      import argparse
+      import nibabel as nb
+      from sklearn.cross_validation import StratifiedKFold
+      import theano
+      import theano.tensor as T
+      import lasagne
+      from lasagne.layers.dnn import Conv3DDNNLayer as ConvLayer3D
+      from lasagne.layers.dnn import MaxPool3DDNNLayer as MaxPoolLayer3D
+      from lasagne.layers import Conv2DLayer, MaxPool2DLayer, InputLayer
+      from lasagne.layers import DenseLayer, ElemwiseMergeLayer, FlattenLayer
+      from lasagne.layers import ConcatLayer, ReshapeLayer, get_output_shape
+      from lasagne.layers import Conv1DLayer, DimshuffleLayer, LSTMLayer, SliceLayer
+      from lasagne.regularization import *
+      import h5py
+      import scipy.io
+      import pdb
       #print('process {0}'.format())
 
       print('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
@@ -785,6 +803,17 @@ def main(args):
     p8 = Process(target = f, args=(foldNum, fold, sub_process_8_args,))
     p9 = Process(target = f, args=(foldNum, fold, sub_process_9_args,))
     p10 = Process(target = f, args=(foldNum, fold, sub_process_10_args,))
+
+    p1.start()
+    p2.start()
+    p3.start()
+    p4.start()
+    p5.start()
+    p6.start()
+    p7.start()
+    p8.start()
+    p9.start()
+    p10.start()
 
   scipy.io.savemat('cnn_lasg_{0}_results'.format(model),
                    {'validAccu': validScores,
