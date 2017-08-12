@@ -16,30 +16,11 @@ import numpy as np
 import tensorflow as tf
 
 import tensorflow.contrib.slim as slim
-
-import dataset as ds
-from db import Db_Interface
-
+from tf_model import TFModel
+from tf_dataset import TFDataset
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('loss_type', 'rdm', "Loss type ['perf', 'rdm', 'all']")
-
-tf.app.flags.DEFINE_string('rdm_type', 'obj', "RDM type ['obj', 'image']")
-
-tf.app.flags.DEFINE_integer('num_rdms', 1, "Number of layers to include in RDM measure [1, 3, 7]")
-
-tf.app.flags.DEFINE_string('rdm_match_layer', 'mdl_br_0_br_0_br_0',
-                           "In case of num_rdms=1, name of the layer to match the RDMS to.")
-
-tf.app.flags.DEFINE_string('dataset', 'cifar100', 'cifar10, cifar100 or imagenet.')
-
-tf.app.flags.DEFINE_integer('model_index', 0,
-                            """Model index.""")
-
-tf.app.flags.DEFINE_string('db_uri', "localhost:27017", 'Mongo DB URI')
-
-# tf.app.flags.DEFINE_string('data_dir', '/braintree/data2/active/users/bashivan/Data/cifar100/data_batch_*',
 tf.app.flags.DEFINE_string('data_dir', '/om/user/bashivan/Data/CIFAR/tfrecords/cifar100/train_val_test/train.*',
                            """Path to the processed data, i.e. """
                            """TFRecord of Example protos.""")
@@ -57,19 +38,8 @@ tf.app.flags.DEFINE_integer('num_gpus', 1,
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
 
-tf.app.flags.DEFINE_boolean("vgg_preprocess", False, "Whether to do VGG style preprocessing (0-255).")
-
-tf.app.flags.DEFINE_string('pretrained_model_checkpoint_path',
-                           '',
-                           """If specified, restore this pretrained model """
-                           """before beginning any training.""")
-
 tf.app.flags.DEFINE_integer('seed', 0,
                             """Random seed value.""")
-
-tf.app.flags.DEFINE_integer('depth', 3, """Depth parameter.""")
-
-tf.app.flags.DEFINE_integer('num_filters', 100, """Number of filters.""")
 
 tf.app.flags.DEFINE_float('initial_learning_rate', 0.1,
                           """Initial learning rate.""")
@@ -81,19 +51,6 @@ tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.1,
                           """Learning rate decay factor.""")
 
 # Evaluator FLAGS
-ENDPOINTS_TO_EXTRACT = None  # None if you want to extract features for all endpoints
-
-tf.app.flags.DEFINE_string("model_type", "cifar", "Model type, currently"
-                                                  "inception or alexnet")
-tf.app.flags.DEFINE_string('zoo_path',
-                           '/braintree/home/bashivan/dropbox/Codes/base_model/Pipeline/Model_zoo',
-                           """Path to the TF model zoo. """
-                           )
-tf.app.flags.DEFINE_string('in_file',
-                           # '/braintree/data2/active/users/bashivan/Data/CIFAR/hdf5/cifar-100-python/cifar100_test.hdf5',
-                           '/om/user/bashivan/Data/CIFAR/hdf5/cifar100/cifar100_valid.h5',
-                           """Path to HDF5 file containing the images.""")
-
 tf.app.flags.DEFINE_string('eval_dir', '/om/user/bashivan/temp',
                            """Directory where to write event logs.""")
 
@@ -118,20 +75,6 @@ tf.app.flags.DEFINE_integer('image_size', 32,
 tf.app.flags.DEFINE_integer('num_preprocess_threads', 1,
                             """Number of preprocessing threads per tower. """
                             """Please make this a multiple of 4.""")
-
-if FLAGS.dataset == 'imagenet':
-    if FLAGS.vgg_preprocess:
-        print('Using VGG Imagenet preprocessing (0-255)')
-        import imagenet_preprocessing_vgg as image_processing
-    else:
-        print('Using normal Imagenet preprocessing (0-1)')
-        import image_processing_simple as image_processing
-else:
-    print('Using normal Cifar preprocessing (0-1)')
-    # import cifar_preprocessing_tvt
-    import cifar_preprocessing_tvt
-
-from sage_model import Sage_Model
 
 class Trainer(object):
   def __init__(self, model, dataset):
@@ -279,6 +222,7 @@ class Trainer(object):
       num_preprocess_threads = FLAGS.num_preprocess_threads * FLAGS.num_gpus
 
       # Change to distorted_inputs for image augmentation
+      # Todo: add data pipeline here
       if FLAGS.dataset.startswith('cifar'):
         images, labels = cifar_preprocessing_tvt.build_input()
       elif FLAGS.dataset == 'imagenet':
@@ -433,7 +377,7 @@ class Trainer(object):
       summary_writer = tf.summary.FileWriter(
         os.path.join(FLAGS.train_dir, model_id, 'train'), graph=sess.graph)
 
-      log_steps = [100, 100, 1000] if FLAGS.dataset.startswith('cifar') else [500, 500, 2000]
+      log_steps = [100, 100, 1000]
       for step in xrange(FLAGS.max_steps):
         start_time = time.time()
         _, loss_value = sess.run([train_op, loss])
@@ -771,68 +715,23 @@ class Trainer(object):
       return np.max(precision), global_step
 
 def main(_):
-  # This part will run when using agent_RL
-  # db = Db_Interface(FLAGS.db_uri)
-  # db_record = db.find_model_id(FLAGS.model_id)
+  with tf.Graph().as_default():
+    inputs = tf.placeholder(tf.float32, shape=(64, None, 53, 64, 37, 1))
 
-  # if FLAGS.dataset == 'imagenet':
-  #   dataset = ds.ImagenetData(FLAGS.data_dir)
-  #   num_classes = 1000
-  # elif FLAGS.dataset == 'cifar10':
-  #   dataset = ds.Cifar10(FLAGS.data_dir)
-  #   num_classes = 10
-  # elif FLAGS.dataset == 'cifar100':
-  #   dataset = ds.Cifar100(FLAGS.data_dir)
-  #   num_classes = 100
-  # else:
-  #   raise ValueError('Dataset type not known.')
+    model = TFModel()
+    dataset = TFDataset(data_dir='/braintree/data2/active/users/bashivan/Data/fmri_conv_orig')
+    with tf.Session() as sess:
+      logits, endpoints = model.inference(inputs, num_classes=2, model_type='conv_lstm', is_training=True)
+      init = tf.global_variables_initializer()
+      sess.run(init)
+      logit_values = sess.run([logits], feed_dict={inputs:np.random.random((64, 10, 53, 64, 37, 1))})
+      print(logit_values[0].shape)
+    # tr = Trainer(model=model, dataset=dataset)
+    # FLAGS.checkpoint_dir = os.path.join(FLAGS.train_dir, 'test_run')
+    FLAGS.eval_dir = os.path.join(FLAGS.checkpoint_dir, 'eval')
+    FLAGS.batch_size = 20
 
-  # if tf.gfile.Exists(os.path.join(FLAGS.train_dir, FLAGS.model_id)):
-  #   tf.gfile.DeleteRecursively(os.path.join(FLAGS.train_dir, FLAGS.model_id))
-  # tf.gfile.MakeDirs(os.path.join(FLAGS.train_dir, FLAGS.model_id))
-  from pymongo import MongoClient
-  import agent_utils
-  # from resnet_model2 import Brn_Cifar as Sage_Model
-  # from resnet_model import Sage_Model
-  from sage_model import Sage_Model
 
-  model_hashes = ['25c8c1f842f2ec7be0b5dacebe701660ca4b579f']
-
-  hash_id = model_hashes[FLAGS.model_index]
-  dataset= ds.Cifar100(FLAGS.data_dir)
-  client = MongoClient('localhost', 27017)
-  db = client['sage_hopt_results']
-  collection = db['jobs']
-
-  specs = collection.find_one({'result.hash_id': hash_id})['misc']['vals']
-  model_def = agent_utils.recover_hpmodel_mongo(specs)
-
-  try:
-    model = Sage_Model(num_classes=dataset.num_classes(), model_def=model_def)
-    tr = Trainer(model=model, dataset=dataset)
-  except:
-    print("Unexpected error in MongoDB connection:", sys.exc_info()[0])
-    raise
-  paths = agent_utils.get_cluster_paths(retrain=True)
-  FLAGS.zoo_path = paths['zoo_path']
-  FLAGS.eval_dir = paths['eval_dir']
-  FLAGS.in_file = paths['in_file']
-  FLAGS.train_dir = paths['train_dir']
-  FLAGS.data_dir = paths['data_dir']
-  FLAGS.subset = 'test'
-  FLAGS.checkpoint_dir = os.path.join(FLAGS.train_dir, hash_id)
-  # FLAGS.checkpoint_dir = os.path.join(FLAGS.train_dir, 'test_run')
-  FLAGS.eval_dir = os.path.join(FLAGS.checkpoint_dir, 'eval')
-  FLAGS.batch_size = 20
-
-  best_precision, last_checkpoint_step = tr.evaluate(loop=False, all_checkpoints=True, wait_secs=60)
-  print('Best precision is: {0}'.format(best_precision))
-  db = client['analyses']
-  collection = db['retrain']
-  collection.update_one({'hash_id': hash_id},
-                        {'$set': {'best_precision': best_precision,
-                                  'last_checkpoint_step': last_checkpoint_step,
-                                  'status': 'evaluated'}}, upsert=False)
 
 
 if __name__ == '__main__':
