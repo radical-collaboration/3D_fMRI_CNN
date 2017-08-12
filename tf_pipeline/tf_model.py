@@ -6,6 +6,8 @@ from tensorflow.python.framework import ops
 from tensorflow.contrib.layers import flatten
 from tensorflow.contrib import rnn
 import numpy as np
+import pdb
+import inspect
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -44,6 +46,7 @@ class TFModel(object):
 
   def _fully_connected(self, x, out_dim):
     """FullyConnected layer for final output."""
+
     x = tf.reshape(x, [x.get_shape()[0].value, -1])
     w = slim.variable(
       'DW', [x.get_shape()[1], out_dim],
@@ -64,7 +67,7 @@ class TFModel(object):
     """
     assert len(filter_size) == 3
     stride_vec = _stride_arr(stride)
-    filter_shape = filter_size + (inputs.get_shape[-1].val, num_filters)
+    filter_shape = filter_size + [inputs.get_shape()[-1].value, num_filters]
     n = reduce(lambda x, y: x * y, filter_size) * num_filters
     filt = slim.variable('DW', filter_shape,
                            tf.float32,
@@ -93,44 +96,60 @@ class TFModel(object):
                              filter_size=[filter_size]*3,
                              padding=padding)
           self.endpoints[scope] = net
-      net = tf.nn.max_pool3d(net, [filter_size]*3, _stride_arr(2), padding='VALID')
+      net = tf.nn.max_pool3d(net, _stride_arr(filter_size), _stride_arr(2), padding='VALID')
     return net
 
   def build_conv_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
                       lstm_dropout_keep_prob=1.0, dropout_keep_prob=1.0):
-    # Define LSTM part
-    lstm_cell = rnn.BasicLSTMCell(num_lstm_units, forget_bias=0.0, state_is_tuple=True)
-    if lstm_dropout_keep_prob < 1.0:
-      lstm_cell = rnn.DropoutWrapper(lstm_cell,
-                                     input_keep_prob=lstm_dropout_keep_prob,
-                                     output_keep_prob=lstm_dropout_keep_prob)
+
+    def lstm_cell():
+      # the BasicLSTMCell will need a reuse parameter which is unfortunately not
+      # defined in TensorFlow 1.0. To maintain backwards compatibility, we add
+      # an argument check here:
+      if 'reuse' in inspect.getargspec(
+        tf.contrib.rnn.BasicLSTMCell.__init__).args:
+        return tf.contrib.rnn.BasicLSTMCell(num_lstm_units, forget_bias=0.0, state_is_tuple=True,
+                                            reuse=tf.get_variable_scope().reuse)
+      else:
+        return tf.contrib.rnn.BasicLSTMCell(
+          num_lstm_units, forget_bias=0.0, state_is_tuple=True)
+
+    if is_training and lstm_dropout_keep_prob < 1:
+      def attn_cell():
+        return tf.contrib.rnn.DropoutWrapper(
+          lstm_cell(), output_keep_prob=lstm_dropout_keep_prob)
+
     if num_lstm_layers > 1:
-      cell = rnn.MultiRNNCell(
-        [lstm_cell for _ in range(num_lstm_layers)], state_is_tuple=True)
+      cell = tf.contrib.rnn.MultiRNNCell(
+        [lstm_cell() for _ in range(num_lstm_layers)], state_is_tuple=True)
     else:
-      cell = lstm_cell
+      cell = lstm_cell()
     current_state = cell.zero_state(self.batch_size, tf.float32)
 
     # Define convnets
     convnets = []
-    for t in range(inputs.get_shape()[0].val):
-      if t > 0:
-        tf.get_variable_scope().reuse_variables()
-      with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
-        net = self.build_cnn(inputs[t])
-      net = flatten(net)
-      net, current_state = cell(net, current_state)
+    for t in range(inputs.get_shape()[0].value):
+      with tf.variable_scope('conv'):
+        if t > 0:
+          tf.get_variable_scope().reuse_variables()
+        with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
+          net = self.build_cnn(inputs[t])
+        net = flatten(net)
+      with tf.variable_scope('lstm'):
+        (net, current_state) = cell(net, current_state)
     assert 'net' in locals()
     self.endpoints['lstm_out'] = net
 
-    with tf.variable_scope('logits'):
-      net = slim.dropout(net, is_training=is_training,
-                         keep_prob=dropout_keep_prob,
-                         scope='dropout')
-      with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
+    with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
+      with tf.variable_scope('FC'):
+        net = slim.dropout(net, is_training=is_training,
+                           keep_prob=dropout_keep_prob,
+                           scope='dropout')
+
         net = self._fully_connected(net, out_dim=128)
         net = tf.nn.relu(net)
         self.endpoints['fc_out'] = net
+      with tf.variable_scope('logits'):
         net = slim.dropout(net, is_training=is_training,
                            keep_prob=dropout_keep_prob,
                            scope='dropout')
@@ -143,10 +162,12 @@ class TFModel(object):
   def model(self,
             inputs,
             num_classes,
+            model_type,
             dropout_keep_prob=0.8,
             is_training=False,
             spatial_squeeze=True,
             scope='conv_lstm'):
+
     logits, endpoints = self.build_conv_lstm(inputs,
                                              num_classes=num_classes,
                                              is_training=is_training,
@@ -156,17 +177,18 @@ class TFModel(object):
   def inference(self,
                 inputs,
                 num_classes,
+                model_type,
+                dropout_keep_prob=0.8,
                 is_training=False,
-                scope=None):
-
+                spatial_squeeze=True,
+                scope='conv_lstm'):
 
     with slim.arg_scope(self.arg_scope()):
-      logits, endpoints = self.model(inputs,
-                                     num_classes,
-                                     is_training=is_training,
-                                     scope=scope)
-
-    return logits
+      logits, endpoints = self.build_conv_lstm(inputs,
+                                               num_classes=num_classes,
+                                               is_training=is_training,
+                                               dropout_keep_prob=dropout_keep_prob)
+    return logits, endpoints
 
   def loss(self,
            logits,
