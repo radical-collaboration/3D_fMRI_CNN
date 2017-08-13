@@ -30,7 +30,7 @@ import scipy.io
 import pdb
 import logging
 from multiprocessing import Process, Manager
-import theano.sandbox.cuda
+# import theano.sandbox.cuda
 
 def log_info_string(input_string):
   print(input_string)
@@ -92,11 +92,6 @@ def load_data():
   # Load features
   features = np.expand_dims(np.array(features).transpose([4, 0, 3, 1, 2]),
                             axis=2)  # Add another filler dimension for the samples
-
-  # collect sites
-
-
-
 
   # change labels from -1/1 to 0/1
   labels = (np.array(labels, dtype=int) == 1).astype(int)
@@ -540,7 +535,7 @@ def main(args):
   log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
 
   for foldNum, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
-    theano.sandbox.cuda.use(private_args['gpu'])
+    # theano.sandbox.cuda.use(private_args['gpu'])
     log_info_string('Beginning fold {0} out of {1}'.format(foldNum + 1, len(fold_pairs)))
     # Divide the dataset into train, validation and test sets
     (X_train, y_train, subject_train), \
@@ -646,8 +641,8 @@ def main(args):
     # parameters at each training step.
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.scalar(name='learning_rate')
-    # updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate, momentum=0.9)
-    updates = lasagne.updates.adam(loss, params, learning_rate=learning_rate)
+    updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate, momentum=0.9)
+    # updates = lasagne.updates.adam(loss, params, learning_rate=learning_rate)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -670,7 +665,7 @@ def main(args):
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
     base_lr = 0.001
-    lr_decay = 1
+    lr_decay = 0.9
 
     # Finally, launch the training loop.
     log_info_string("Starting training...")
@@ -759,7 +754,7 @@ def main(args):
     log_info_string('-' * 50)
     log_info_string("Best validation accuracy:\t\t{:.2f} %".format(best_validation_accu * 100))
     log_info_string("Best test accuracy:\t\t{:.2f} %".format(av_test_acc * 100))
-  scipy.io.savemat('cnn_{0}_results_adam_{1}_LSO_fold{2}'.format(model, base_lr, ''.join([str(i) for i in fold_to_run])),
+  scipy.io.savemat('cnn_{0}_results_sgd_{1}_LSO_fold{2}'.format(model, base_lr, ''.join([str(i) for i in fold_to_run])),
                    {
                      'folds': fold_to_run,
                      'validAccu': validScores,
