@@ -11,7 +11,7 @@ import math
 import sys
 import h5py
 import scipy.misc
-
+import logging
 import numpy as np
 import tensorflow as tf
 
@@ -19,18 +19,32 @@ import tensorflow.contrib.slim as slim
 from tf_model import TFModel
 from tf_dataset import TFDataset
 
+import pdb
+
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('data_dir', '/om/user/bashivan/Data/CIFAR/tfrecords/cifar100/train_val_test/train.*',
+tf.app.flags.DEFINE_string('data_dir', '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig',
                            """Path to the processed data, i.e. """
                            """TFRecord of Example protos.""")
 
-tf.app.flags.DEFINE_string('train_dir', '/om/user/bashivan/results/SAGE/search_results',
+tf.app.flags.DEFINE_string('train_dir', '/braintree/data2/active/users/bashivan/results/temp',
                            """Directory where to write event logs """
                            """and checkpoint.""")
 
-tf.app.flags.DEFINE_integer('max_steps', 20000,
-                            """Number of batches to run.""")
+tf.app.flags.DEFINE_integer('num_epochs', 10,
+                            """Number of epochs to run.""")
+
+tf.app.flags.DEFINE_integer('num_folds', 10,
+                            """Number of folds to split the data.""")
+
+tf.app.flags.DEFINE_integer('fold_to_run', -1,
+                            """fold numbers to run (default=-1 for all folds).""")
+
+tf.app.flags.DEFINE_integer('num_time_steps', 16,
+                            """Number of time windows to include in each sample.""")
+
+tf.app.flags.DEFINE_string('model_type', 'lstm',
+                           """Model type (1dconv, maxpool, lstm, mix, lstm2).""")
 
 tf.app.flags.DEFINE_integer('num_gpus', 1,
                             """How many GPUs to use.""")
@@ -41,10 +55,10 @@ tf.app.flags.DEFINE_boolean('log_device_placement', False,
 tf.app.flags.DEFINE_integer('seed', 0,
                             """Random seed value.""")
 
-tf.app.flags.DEFINE_float('initial_learning_rate', 0.1,
+tf.app.flags.DEFINE_float('initial_learning_rate', 0.001,
                           """Initial learning rate.""")
 
-tf.app.flags.DEFINE_float('num_epochs_per_decay', 20.0,
+tf.app.flags.DEFINE_float('num_epochs_per_decay', 1.0,
                           """Epochs after which learning rate decays.""")
 
 tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.1,
@@ -68,7 +82,7 @@ tf.app.flags.DEFINE_integer('num_checkpoints_tosave', 5, "Number of checkpoints 
 # Image related flags
 tf.app.flags.DEFINE_integer('num_readers', 1,
                             """Number of parallel readers during train.""")
-tf.app.flags.DEFINE_integer('batch_size', 128,
+tf.app.flags.DEFINE_integer('batch_size', 10,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_integer('image_size', 32,
                             """Provide square images of this size.""")
@@ -76,11 +90,179 @@ tf.app.flags.DEFINE_integer('num_preprocess_threads', 1,
                             """Number of preprocessing threads per tower. """
                             """Please make this a multiple of 4.""")
 
+
+def log_info_string(input_string):
+  print(input_string)
+  logging.info(input_string)
+
+
 class Trainer(object):
   def __init__(self, model, dataset):
     super(Trainer, self).__init__()
     self.model = model
     self.dataset = dataset
+
+    self.features = None
+    self.labels = None
+    self.subjects = None
+    self.runs = None
+    self.x_train = None
+    self.y_train = None
+    self.subject_train = None
+    self.x_val = None
+    self.y_val = None
+    self.subject_val = None
+    self.x_test = None
+    self.y_test = None
+    self.subject_test = None
+
+  # Todo: optimize loading the data, remove any unnecessary steps.
+  def load_data(self, random=False):
+    """
+    Loads the data from nii files.
+
+    """
+    if random:
+      # self.features = np.random.random((380, 30, 12, 13, 14, 1))
+      self.features = np.random.random((380, 137, 37, 53, 64, 1))
+      self.labels = np.random.randint(0, 2, (380,))
+      self.subjects = np.random.permutation(range(1, 96)*4)
+      self.runs = np.random.permutation(range(1, 5)*95)
+
+    # Load features
+    else:
+      self.features = np.expand_dims(np.array(self.dataset.get_features()).transpose([0, 4, 3, 1, 2]),
+                                     axis=-1)  # Add another filler dimension for the samples
+
+      # change labels from -1/1 to 0/1
+      self.labels = (np.array(self.dataset.get_labels(), dtype=int) == 1).astype(int)
+
+      subjects = self.dataset.get_subjects()
+      # change subject_IDs to scale 0-94
+      unique_IDs = []
+      [unique_IDs.append(i) for i in subjects if not unique_IDs.count(i)]
+      dictionary_IDs = {x: i for i, x in enumerate(unique_IDs, start=1)}
+
+      for i in range(len(subjects)):
+        subjects[i] = dictionary_IDs[subjects[i]]
+
+      self.subjects = np.asarray(subjects, dtype=int)
+      self.runs = np.asarray(self.dataset.get_runs(), dtype=int)
+
+  def split_data(self, fold_ind):
+    """
+    Receives the the indices for train and test datasets.
+    Outputs the train, validation, and test data and label datasets.
+
+    :param
+    """
+    pdb.set_trace()
+    # Data from a randomly subset of subjects is used as validation
+    train_subjects = np.unique(self.subjects[fold_ind[0]])
+    test_subjects = np.unique(self.subjects[fold_ind[1]])
+    val_subjects = train_subjects[np.random.choice(range(len(train_subjects)), len(test_subjects), replace=False)]
+    valid_ind = fold_ind[0][np.in1d(self.subjects[fold_ind[0]], val_subjects)]
+    train_ind = fold_ind[0][~np.in1d(self.subjects[fold_ind[0]], val_subjects)]
+    test_ind = fold_ind[1]
+
+    self.x_train = self.features[train_ind]
+    self.y_train = np.squeeze(self.labels[train_ind]).astype(np.int32)
+    self.subject_train = np.squeeze(self.subjects[train_ind]).astype(np.int32)
+    self.x_val = self.features[valid_ind]
+    self.y_val = np.squeeze(self.labels[valid_ind]).astype(np.int32)
+    self.subject_val = np.squeeze(self.subjects[valid_ind]).astype(np.int32)
+    self.x_test = self.features[test_ind]
+    self.y_test = np.squeeze(self.labels[test_ind]).astype(np.int32)
+    self.subject_test = np.squeeze(self.subjects[test_ind]).astype(np.int32)
+
+    return [(self.x_train, self.y_train, self.subject_train),
+            (self.x_val, self.y_val, self.subject_val),
+            (self.x_test, self.y_test, self.subject_test)]
+
+  def preprocess_data(self):
+    """
+
+    :param fold_ind:
+    :return:
+    """
+    if (self.x_train is None) or \
+      (self.x_val is None) or \
+      (self.x_test is None):
+      raise AttributeError('Subset variables are not set. Run split_data before calling preprocess_data.')
+
+    self.x_train = self.x_train.astype("float32", casting='unsafe')
+    self.x_val = self.x_val.astype("float32", casting='unsafe')
+    self.x_test = self.x_test.astype("float32", casting='unsafe')
+
+    # x_train.shape = (137, 308, 37, 53, 64, 1)
+    shape = self.x_train.shape
+    T_1 = shape[1]
+    N = shape[0]
+    V = reduce(lambda x, y: x*y, self.x_train.shape[2:5])
+    self.x_train = np.reshape(self.x_train, [N, T_1, 1, V])
+    x_train_mean = np.mean(self.x_train, axis=(0, 1), keepdims=True)
+    x_train_variance = np.var(self.x_train, axis=(0, 1), keepdims=True)
+    self.x_train = (self.x_train - x_train_mean) / (0.001 + x_train_variance)
+    self.x_train = np.reshape(self.x_train, shape)
+
+    # VALIDATION
+    shape = self.x_val.shape
+    N = shape[0]
+    self.x_val = np.reshape(self.x_val, [N, T_1, 1,V])
+    x_val_mean = np.mean(self.x_val, axis=(0, 1), keepdims=True)
+    x_val_variance = np.std(self.x_val, axis=(0, 1), keepdims=True)
+    self.x_val = (self.x_val - x_val_mean) / (0.001 + x_val_variance)
+    self.x_val = np.reshape(self.x_val, shape)
+
+    # TEST
+    shape = self.x_test.shape
+    N = shape[0]
+    self.x_test = np.reshape(self.x_test, [N, T_1, 1, V])
+    x_test_mean = np.mean(self.x_test, axis=(0, 1), keepdims=True)
+    x_test_variance = np.std(self.x_test, axis=(0, 1), keepdims=True)
+    self.x_test = (self.x_test - x_test_mean) / (0.001 + x_test_variance)
+    self.x_test = np.reshape(self.x_test, shape)
+
+    self.x_train = self.x_train.astype("float32", casting='unsafe')
+    self.x_val = self.x_val.astype("float32", casting='unsafe')
+    self.x_test = self.x_test.astype("float32", casting='unsafe')
+
+  def iterate_minibatches(self, subset):
+    """
+
+    :param subset:
+    :return:
+    """
+    selector_dict = {'train': (self.x_train, self.y_train, self.subject_train),
+                     'val': (self.x_val, self.y_val, self.subject_val),
+                     'test': (self.x_test, self.y_test, self.subject_test)}
+    inputs, targets, subjects = selector_dict[subset]
+    input_len = inputs.shape[0]
+    X = []
+    L = []
+    assert input_len == len(targets)
+    indices = np.arange(input_len)
+    # shuffles index for collecting all subject indices
+    indices_subject = np.random.permutation(indices)
+    rand_ind_timept = np.random.permutation(inputs.shape[1] - FLAGS.num_time_steps)
+
+    batch_count = 0
+    for i in rand_ind_timept:
+      for j in indices_subject:
+        target_ind_subject = targets[j]
+        data_ind_subject = inputs[j]
+
+        x = data_ind_subject[i:i + FLAGS.num_time_steps]
+        X.append(x)
+        L.append(target_ind_subject)
+
+        batch_count += 1
+        if batch_count == FLAGS.batch_size:
+          batch_count = 0
+
+          yield (np.array(X), np.asarray(L))
+          X = []
+          L = []
 
   def _tower_loss(self, images, labels, model, scope, reuse_variables=False):
     """Calculate the total loss on a single tower running the ImageNet model.
@@ -90,7 +272,7 @@ class Trainer(object):
     then each tower will operate on an batch of 16 images.
 
     Args:
-      images: Images. 4D tensor of size [batch_size, FLAGS.image_size,
+      images: Images. 6D tensor of size [num_time_windows, batch_size, ,
                                          FLAGS.image_size, 3].
       labels: 1-D integer Tensor of [batch_size].
       num_classes: number of classes
@@ -106,20 +288,25 @@ class Trainer(object):
 
     # Build inference Graph.
     with tf.variable_scope(tf.get_variable_scope(), reuse=reuse_variables):
-      logits, _ = model.inference(images, is_training=True, scope=scope)
-    predictions = tf.nn.softmax(logits[0]) if isinstance(logits, tuple) else tf.nn.softmax(logits)
+      logits, _ = model.inference(images, num_classes=2, model_type='conv_lstm', is_training=True)
+
+    predictions = tf.nn.softmax(logits)
     predictions = tf.argmax(predictions, axis=1)
-    precision = tf.reduce_mean(tf.to_float(tf.equal(predictions, tf.cast(labels, tf.int64))))
+    accuracy = tf.reduce_mean(tf.to_float(tf.equal(predictions, tf.cast(labels, tf.int64))))
 
     # Build the portion of the Graph calculating the losses. Note that we will
     # assemble the total_loss using a custom function below.
     split_batch_size = images.get_shape().as_list()[0]
     model.loss(logits, labels, batch_size=split_batch_size)
+
     # Assemble all of the losses for the current tower only.
     losses = tf.get_collection(tf.GraphKeys.LOSSES, scope)
     # Calculate the total loss for the current tower.
     regularization_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    total_loss = tf.add_n(losses + regularization_losses, name='total_loss')
+    if model.WEIGHT_DECAY > 0.0:
+      total_loss = tf.add_n(losses + regularization_losses, name='total_loss')
+    else:
+      total_loss = losses
 
     # Compute the moving average of all individual losses and the total loss.
     loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
@@ -138,7 +325,7 @@ class Trainer(object):
 
     with tf.control_dependencies([loss_averages_op]):
       total_loss = tf.identity(total_loss)
-    return total_loss, precision
+    return total_loss, accuracy
 
   def _average_gradients(self, tower_grads):
     """Calculate the average gradient for each shared variable across all towers.
@@ -184,13 +371,14 @@ class Trainer(object):
     print('*' * 40)
     return
 
-  def train(self, model_id, clean=True):
+  # Todo: add printing functions to training loop
+  def train(self, fold_num, clean=True):
     """Train on dataset for a number of steps."""
     self.print_flags()
     if clean:
-      if tf.gfile.Exists(os.path.join(FLAGS.train_dir, model_id)):
-        tf.gfile.DeleteRecursively(os.path.join(FLAGS.train_dir, model_id))
-      tf.gfile.MakeDirs(os.path.join(FLAGS.train_dir, model_id))
+      if tf.gfile.Exists(FLAGS.train_dir):
+        tf.gfile.DeleteRecursively(FLAGS.train_dir)
+      tf.gfile.MakeDirs(FLAGS.train_dir)
     with tf.Graph().as_default(), tf.device('/cpu:0'):
       # Create a variable to count the number of train() calls. This equals the
       # number of batches processed * FLAGS.num_gpus.
@@ -202,7 +390,7 @@ class Trainer(object):
       tf.set_random_seed(FLAGS.seed)
 
       # Calculate the learning rate schedule.
-      num_examples_per_epoch = self.dataset.num_examples_per_epoch(subset=FLAGS.subset)
+      num_examples_per_epoch = self.dataset.num_examples_per_epoch(subset=FLAGS.subset, fold_num=fold_num)
       num_batches_per_epoch = (num_examples_per_epoch /
                                FLAGS.batch_size)
       decay_steps = int(num_batches_per_epoch * FLAGS.num_epochs_per_decay)
@@ -221,25 +409,20 @@ class Trainer(object):
       # number of GPU towers.
       num_preprocess_threads = FLAGS.num_preprocess_threads * FLAGS.num_gpus
 
-      # Change to distorted_inputs for image augmentation
-      # Todo: add data pipeline here
-      if FLAGS.dataset.startswith('cifar'):
-        images, labels = cifar_preprocessing_tvt.build_input()
-      elif FLAGS.dataset == 'imagenet':
-        images, labels = image_processing.distorted_inputs(
-          self.dataset,
-          num_preprocess_threads=num_preprocess_threads)
-      else:
-        raise ValueError("Dataset not recognized.")
+      inputs_ph = tf.placeholder(tf.float32,
+                                 shape=(None, FLAGS.num_time_steps) + self.features.shape[2:],
+                                 name='inputs_ph')
+      # inputs_ph = tf.placeholder(tf.float32, shape=(None, FLAGS.num_time_steps, 12, 13, 14, 1), name='inputs_ph')
+      labels_ph = tf.placeholder(tf.int32, shape=(None,), name='labels_ph')
       input_summaries = copy.copy(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
       # Split the batch of images and labels for towers.
-      images_splits = tf.split(axis=0, num_or_size_splits=FLAGS.num_gpus, value=images)
-      labels_splits = tf.split(axis=0, num_or_size_splits=FLAGS.num_gpus, value=labels)
+      images_splits = tf.split(axis=0, num_or_size_splits=FLAGS.num_gpus, value=inputs_ph)
+      labels_splits = tf.split(axis=0, num_or_size_splits=FLAGS.num_gpus, value=labels_ph)
 
       # Calculate the gradients for each model tower.
       tower_grads = []
-      tower_precisions = []
+      tower_accuracies = []
       reuse_variables = False
       for i in xrange(FLAGS.num_gpus):
         with tf.device('/gpu:%d' % i):
@@ -249,7 +432,7 @@ class Trainer(object):
               # Calculate the loss for one tower of the ImageNet model. This
               # function constructs the entire ImageNet model but shares the
               # variables across all towers.
-              loss, precision = self._tower_loss(images_splits[i], labels_splits[i], self.model,
+              loss, accuracy = self._tower_loss(images_splits[i], labels_splits[i], self.model,
                                             scope, reuse_variables=reuse_variables)
 
             # Reuse variables for the next tower.
@@ -270,7 +453,7 @@ class Trainer(object):
 
             # Keep track of the gradients across all towers.
             tower_grads.append(grads)
-            tower_precisions.append(precision)
+            tower_accuracies.append(accuracy)
 
             # Analyze model
             param_stats = tf.contrib.tfprof.model_analyzer.print_model_analysis(
@@ -286,13 +469,13 @@ class Trainer(object):
       # We must calculate the mean of each gradient. Note that this is the
       # synchronization point across all towers.
       grads = self._average_gradients(tower_grads)
-
+      batch_accuracy = tf.reduce_mean(tower_accuracies, 0)
       # Add a summaries for the input processing and global_step.
       summaries.extend(input_summaries)
 
       # Add a summary to track the learning rate.
       summaries.append(tf.summary.scalar('learning_rate', lr))
-      summaries.append(tf.summary.scalar('Precision_1', tf.reduce_mean(tower_precisions, 0)))
+      summaries.append(tf.summary.scalar('Accuracy', batch_accuracy))
 
       # Add histograms for gradients.
       # for grad, var in grads:
@@ -351,385 +534,149 @@ class Trainer(object):
         log_device_placement=FLAGS.log_device_placement))
       sess.run(init)
 
-      # if FLAGS.pretrained_model_checkpoint_path:
-      #     assert tf.gfile.Exists(FLAGS.pretrained_model_checkpoint_path)
-      #     variables_to_restore = tf.get_collection(
-      #         tf.GraphKeys.TRAINABLE_VARIABLES)
-      #     restorer = tf.train.Saver(variables_to_restore)
-      #     restorer.restore(sess, FLAGS.pretrained_model_checkpoint_path)
-      #     print('%s: Pre-trained model restored from %s' %
-      #           (datetime.now(), FLAGS.pretrained_model_checkpoint_path))
-
-      if FLAGS.pretrained_model_checkpoint_path:
-        assert tf.gfile.Exists(FLAGS.pretrained_model_checkpoint_path)
-        ckpt = tf.train.get_checkpoint_state(FLAGS.pretrained_model_checkpoint_path)
-        variables_to_restore = tf.get_collection(
-          # tf.GraphKeys.TRAINABLE_VARIABLES)
-          tf.GraphKeys.GLOBAL_VARIABLES)
-        restorer = tf.train.Saver(variables_to_restore, max_to_keep=1)
-        restorer.restore(sess, ckpt.model_checkpoint_path)
-        print('%s: Pre-trained model restored from %s' %
-              (datetime.now(), ckpt.model_checkpoint_path))
-
       # Start the queue runners.
       tf.train.start_queue_runners(sess=sess)
 
       summary_writer = tf.summary.FileWriter(
-        os.path.join(FLAGS.train_dir, model_id, 'train'), graph=sess.graph)
+        os.path.join(FLAGS.train_dir, 'train'), graph=sess.graph)
 
       log_steps = [100, 100, 1000]
-      for step in xrange(FLAGS.max_steps):
+      step = 0
+      val_acc, val_loss = 0, 0
+      for epoch in xrange(FLAGS.num_epochs):
         start_time = time.time()
-        _, loss_value = sess.run([train_op, loss])
-        duration = time.time() - start_time
+        for batch_num, batch in enumerate(self.iterate_minibatches(subset='train')):
+          inputs, targets = batch
+          start_time = time.time()
+          _, l, acc = sess.run([train_op, loss, batch_accuracy],
+                                   feed_dict={inputs_ph: inputs, labels_ph: targets})
+          duration = time.time() - start_time
+          val_acc += acc
+          val_loss += l
 
-        assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
-        if step % log_steps[0] == 0:
-          examples_per_sec = FLAGS.batch_size / float(duration)
-          format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
-                        'sec/batch)')
-          print(format_str % (datetime.now(), step, loss_value,
-                              examples_per_sec, duration))
+          assert not np.isnan(l), 'Model diverged with loss = NaN'
 
-        if step % log_steps[1] == 0:
-          summary_str = sess.run(summary_op)
-          summary_writer.add_summary(summary_str, step)
+          if step % log_steps[0] == 0:
+            examples_per_sec = FLAGS.batch_size / float(duration)
+            format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
+                          'sec/batch)')
+            print(format_str % (datetime.now(), step, l,
+                                examples_per_sec, duration))
 
-        # Save the model checkpoint periodically.
-        if step % log_steps[2] == 0 or (step + 1) == FLAGS.max_steps:
-          checkpoint_path = os.path.join(FLAGS.train_dir, model_id, 'model.ckpt')
-          saver.save(sess, checkpoint_path, global_step=step)
+          if step % log_steps[1] == 0:
+            summary_str = sess.run(summary_op, feed_dict={inputs_ph: inputs, labels_ph: targets})
+            summary_writer.add_summary(summary_str, step)
 
-        if loss_value > 5000:
-          print('Breaking the training loop because of large loss value')
-          return -1
+          # Save the model checkpoint periodically.
+          if step % log_steps[2] == 0:
+            checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+            saver.save(sess, checkpoint_path, global_step=step)
+
+          step += 1
+        av_train_acc = val_acc / (batch_num+1)
+        av_train_loss = val_loss / (batch_num+1)
+
+        val_acc, val_loss = 0, 0
+        for batch_num, batch in enumerate(self.iterate_minibatches(subset='val')):
+          inputs, targets = batch
+          [l, acc] = sess.run([loss, batch_accuracy], feed_dict={inputs_ph: inputs, labels_ph: targets})
+          val_acc += acc
+          val_loss += l
+        av_val_acc = val_acc / (batch_num+1)
+        av_val_loss = val_loss / (batch_num+1)
+
+        log_info_string("Epoch {} of {} took {:.3f}s".format(
+          epoch + 1, FLAGS.num_epochs, time.time() - start_time))
+        log_info_string("  training loss:\t\t{:.6f}".format(av_train_loss))
+        log_info_string("  training accuracy:\t\t{:.2f} %".format(av_train_acc * 100))
+        log_info_string("  validation loss:\t\t{:.6f}".format(av_val_loss))
+        log_info_string("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+
       return 0
 
 
-  @staticmethod
-  def iterate_minibatches(images, batchsize, shuffle=False):
-    input_len = images.shape[0]
-
-    if shuffle:
-      indices = np.arange(input_len)
-      np.random.shuffle(indices)
-    for start_idx in range(0, input_len, batchsize):
-      if shuffle:
-        excerpt = indices[start_idx:start_idx + batchsize]
-      else:
-        excerpt = slice(start_idx, start_idx + batchsize)
-      yield images[excerpt]
-
-  def _get_features(self, model_id, saver, h5file, endpoints, images_placeholder, images, batch_size):
-    """
-    Runs Eval once.
-    :param saver: instance of TF saver class
-    :param h5file: output hdf5 file
-    :param endpoints: dictionary containing endpoint tensors
-    :param images_placeholder: TF image placeholder
-    :param images: array containing all images to be evaluated
-    :return:
-    """
-    global ENDPOINTS_TO_EXTRACT
-
-    with tf.Session() as sess:
-      checkpoint_dir = os.path.join(FLAGS.train_dir, model_id)
-      init = tf.global_variables_initializer()
-      sess.run(init)
-      if os.path.isdir(checkpoint_dir):
-        ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-        if ckpt and ckpt.model_checkpoint_path:
-          if os.path.isabs(ckpt.model_checkpoint_path):
-            # Restores from checkpoint with absolute path.
-            saver.restore(sess, ckpt.model_checkpoint_path)
-          else:
-            # Restores from checkpoint with relative path.
-            saver.restore(sess, os.path.join(checkpoint_dir,
-                                             ckpt.model_checkpoint_path))
-
-          # Assuming model_checkpoint_path looks something like:
-          #   /my-favorite-path/imagenet_train/model.ckpt-0,
-          # extract global_step from it.
-          global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
-          print('Succesfully loaded model from %s at step=%s.' %
-                (ckpt.model_checkpoint_path, global_step))
-        else:
-          print('No checkpoint file found')
-          return
-
-      else:
-        saver.restore(sess, checkpoint_dir)
-        global_step = checkpoint_dir.split('/')[-1].split('-')[-1]
-        print('Succesfully loaded model from %s at step=%s.' %
-              (checkpoint_dir, global_step))
-
-      # Start the queue runners.
-      coord = tf.train.Coordinator()
-      try:
-        threads = []
-        for qr in tf.get_collection(tf.GraphKeys.QUEUE_RUNNERS):
-          threads.extend(qr.create_threads(sess, coord=coord, daemon=True,
-                                           start=True))
-
-        num_iter = int(math.ceil(self.dataset.num_examples_per_epoch(subset=FLAGS.subset) / batch_size))
-        step = 0
-
-        print('%s: Extracting features for (%s).' % (datetime.now(), FLAGS.subset))
-        start_time = time.time()
-        total_examples = 0
-
-        # Remove all model features in HDF5
-        for key in h5file.keys():
-          if 'mdl_' in key:
-            h5file.__delitem__(key)
-
-        for batch in self.iterate_minibatches(images, batch_size):
-          # print('Processing batch. Total examples processed: {0}'.format(total_examples))
-
-          if not coord.should_stop():
-            total_examples += batch.shape[0]
-            feed_dict = {images_placeholder: batch}
-            feat = sess.run(endpoints, feed_dict=feed_dict)
-
-            if ENDPOINTS_TO_EXTRACT is None:
-              ENDPOINTS_TO_EXTRACT = feat.keys()
-
-                # Store all endpoint values
-            # for key in endpoints.keys():
-            # Store specific feature sets
-            for key in ENDPOINTS_TO_EXTRACT:
-              feat[key] = np.reshape(feat[key], [feat[key].shape[0]] + [-1])
-              if 'mdl_' + key.replace('/', '_') not in h5file.keys():
-                ds_feat = h5file.create_dataset('mdl_' + key.replace('/', '_'),
-                                                shape=(images.shape[0], feat[key].shape[1]),
-                                                dtype=np.float32)
-              else:
-                ds_feat = h5file['mdl_' + key.replace('/', '_')]
-              ds_feat[step * batch_size:(step + 1) * batch_size, :] = feat[key]
-
-            step += 1
-            if step % 1000 == 0:
-              duration = time.time() - start_time
-              sec_per_batch = duration / 1000.0
-              examples_per_sec = FLAGS.batch_size / sec_per_batch
-              print('%s: [%d batches out of %d] (%.1f examples/sec; %.3f'
-                    'sec/batch)' % (datetime.now(), step, num_iter,
-                                    examples_per_sec, sec_per_batch))
-              start_time = time.time()
-
-        print('%s: [%d examples]' %
-              (datetime.now(), total_examples))
-
-      except Exception as e:
-        coord.request_stop(e)
-
-      coord.request_stop()
-      coord.join(threads, stop_grace_period_secs=10)
-
-  def get_features(self, model_id, batch_size=20):
-    # Get images and labels from the dataset.
-    print('Read images from: {0}'.format(FLAGS.in_file))
-    print('Writing features to: {0}'.format(os.path.join(FLAGS.train_dir, model_id, 'feats.hdf5')))
-    with h5py.File(FLAGS.in_file, 'r') as h5file:
-      print('Preprocessing images...', end=" ")
-      images = h5file['images']
-      if FLAGS.dataset == 'imagenet':
-        if np.ndim(images) == 3:
-          images = np.repeat(np.expand_dims(images, 3), 3, axis=3)
-        images_resized = np.zeros((images.shape[0], FLAGS.image_size, FLAGS.image_size, 3), dtype=np.float32)
-        for i, im in enumerate(images):
-          images_resized[i] = scipy.misc.imresize(im, (FLAGS.image_size, FLAGS.image_size, 3)).astype(np.float32)
-      else:
-        images_resized = np.array(images, dtype=np.float32)
-    images_resized -= 128
-    images_resized /= 128.
-    with tf.Graph().as_default():
-      images_placeholder = tf.placeholder(tf.float32,
-                                          shape=tuple([batch_size] + list(images_resized.shape[1:])))
-
-      logits, endpoints = self.model.inference(images_placeholder)
-      # Restore the moving average version of the learned variables for eval.
-      # variables_to_restore = slim.get_variables_to_restore(exclude=['aux_logits', 'logits'])
-      variable_averages = tf.train.ExponentialMovingAverage(
-        self.model.MOVING_AVERAGE_DECAY)
-      variables_to_restore = variable_averages.variables_to_restore()
-      # variables_to_restore = slim.get_variables_to_restore()
-      saver = tf.train.Saver(variables_to_restore, max_to_keep=1)
-
-      # Build the summary operation based on the TF collection of Summaries.
-      with h5py.File(os.path.join(FLAGS.train_dir, model_id, 'feats.hdf5'), 'w') as output_h5file:
-        self._get_features(model_id, saver, output_h5file, endpoints,
-                           images_placeholder, images_resized, batch_size=batch_size)
-
-      print('Feature extraction complete!')
-
-  def _eval_once(self, saver,
-                 top_1_op,
-                 top_5_op,
-                 all_checkpoints=True,
-                 summary_op=None,
-                 summary_writer=None,
-                 best_precision=0.0):
-    """Runs Eval once.
-
-    Args:
-      saver: Saver.
-      summary_writer: Summary writer.
-      top_1_op: Top 1 op.
-      top_5_op: Top 5 op.
-      summary_op: Summary op.
-      last_endpoint: last endpoint
-    """
-    precision_at_1, recall_at_5 = [], []
-    with tf.Session() as sess:
-      ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
-      if all_checkpoints:
-        checkpoints_list = ckpt.all_model_checkpoint_paths
-      else:
-        checkpoints_list = [tf.train.get_checkpoint_state(FLAGS.checkpoint_dir).model_checkpoint_path]
-      for i, checkpoint_path in enumerate(checkpoints_list):
-        saver.restore(sess, checkpoint_path)
-
-        # Assuming model_checkpoint_path looks something like:
-        #   /my-favorite-path/imagenet_train/model.ckpt-0,
-        # extract global_step from it.
-        global_step = checkpoint_path.split('/')[-1].split('-')[-1]
-        print('Succesfully loaded model from %s at step=%s.' %
-              (checkpoint_path, global_step))
-
-        try:
-          if i == 0:
-            # Start the queue runners.
-            coord = tf.train.Coordinator()
-            threads = []
-            for qr in tf.get_collection(tf.GraphKeys.QUEUE_RUNNERS):
-              threads.extend(qr.create_threads(sess, coord=coord, daemon=True,
-                                               start=True))
-
-          num_iter = int(math.ceil(self.dataset.num_examples_per_epoch(subset=FLAGS.subset) / FLAGS.batch_size))
-          # Counts the number of correct predictions.
-          count_top_1 = 0.0
-          count_top_5 = 0.0
-          total_sample_count = num_iter * FLAGS.batch_size
-          step = 0
-
-          print('%s: starting evaluation on (%s).' % (datetime.now(), FLAGS.subset))
-          start_time = time.time()
-          while step < num_iter and not coord.should_stop():
-            top_1, top_5 = sess.run([top_1_op, top_5_op])
-            count_top_1 += np.sum(top_1)
-            count_top_5 += np.sum(top_5)
-            step += 1
-            if step % 100 == 0:
-              duration = time.time() - start_time
-              sec_per_batch = duration / 20.0
-              examples_per_sec = FLAGS.batch_size / sec_per_batch
-              print('%s: [%d batches out of %d] (%.1f examples/sec; %.3f'
-                    'sec/batch)' % (datetime.now(), step, num_iter,
-                                    examples_per_sec, sec_per_batch))
-              start_time = time.time()
-          # Compute precision @ 1.
-          precision_at_1.append(count_top_1 / total_sample_count)
-          recall_at_5.append(count_top_5 / total_sample_count)
-          print('%s: precision @ 1 = %.4f recall @ 5 = %.4f [%d examples]' %
-                (datetime.now(), precision_at_1[-1], recall_at_5[-1], total_sample_count))
-
-          best_precision = max(precision_at_1[-1], best_precision)
-
-          if summary_op is not None:
-            summary = tf.Summary()
-            summary.ParseFromString(sess.run(summary_op))
-            summary.value.add(tag='Precision_1', simple_value=precision_at_1[-1])
-            summary.value.add(tag='Precision_5', simple_value=recall_at_5[-1])
-            summary.value.add(tag='Best Precision', simple_value=best_precision)
-            summary_writer.add_summary(summary, global_step)
-        except Exception as e:  # pylint: disable=broad-except
-          coord.request_stop(e)
-
-      coord.request_stop()
-      coord.join(threads, stop_grace_period_secs=10)
-    return precision_at_1, global_step
-
-  def evaluate(self, all_checkpoints=True, loop=False, wait_secs=30):
-    """Evaluate model on Dataset for a number of steps."""
-    with tf.Graph().as_default():
-      # Get images and labels from the dataset.
-      if FLAGS.dataset.startswith('cifar'):
-          images, labels = cifar_preprocessing_tvt.build_input()
-      elif FLAGS.dataset == 'imagenet':
-          images, labels = image_processing.inputs(self.dataset)
-      else:
-          raise ValueError("Dataset not recognized.")
-
-      # Build a Graph that computes the logits predictions from the
-      # inference model.
-      logits = self.model.inference(images, is_training=False)
-      if hasattr(logits, '__len__'):
-        logits = logits[0]
-
-      # Calculate predictions.
-      top_1_op = tf.nn.in_top_k(logits, labels, 1)
-      top_5_op = tf.nn.in_top_k(logits, labels, 5)
-
-      # Restore the moving average version of the learned variables for eval.
-      variable_averages = tf.train.ExponentialMovingAverage(
-        self.model.MOVING_AVERAGE_DECAY)
-      variables_to_restore = variable_averages.variables_to_restore()
-
-      if FLAGS.dataset.startswith('cifar'):
-        saver = tf.train.Saver()
-      else:
-        saver = tf.train.Saver(variables_to_restore)
-
-      # Build the summary operation based on the TF collection of Summaries.
-      summary_op = tf.summary.merge_all()
-
-      graph_def = tf.get_default_graph().as_graph_def()
-      summary_writer = tf.summary.FileWriter(FLAGS.eval_dir,
-                                             graph_def=graph_def)
-
-      # Analyze model
-      param_stats = tf.contrib.tfprof.model_analyzer.print_model_analysis(
-        tf.get_default_graph(),
-        tfprof_options=tf.contrib.tfprof.model_analyzer.
-          TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
-      sys.stdout.write('total_params: %d\n' % param_stats.total_parameters)
-
-      tf.contrib.tfprof.model_analyzer.print_model_analysis(
-        tf.get_default_graph(),
-        tfprof_options=tf.contrib.tfprof.model_analyzer.FLOAT_OPS_OPTIONS)
-      best_precision = 0.0
-      while True:
-        precision, global_step = self._eval_once(saver,
-                                    top_1_op,
-                                    top_5_op,
-                                    all_checkpoints=all_checkpoints,
-                                    summary_op=summary_op,
-                                    summary_writer=summary_writer,
-                                    best_precision=best_precision)
-        best_precision = np.max(precision + [best_precision])
-        if not loop:
-          break
-        time.sleep(wait_secs)
-      return np.max(precision), global_step
-
 def main(_):
-  with tf.Graph().as_default():
-    inputs = tf.placeholder(tf.float32, shape=(64, None, 53, 64, 37, 1))
+  fold_to_run = int(FLAGS.fold_to_run)
+  if fold_to_run == -1:
+    fold_to_run = range(FLAGS.num_folds)
+  else:
+    fold_to_run = [fold_to_run]
 
-    model = TFModel()
-    dataset = TFDataset(data_dir='/braintree/data2/active/users/bashivan/Data/fmri_conv_orig')
-    with tf.Session() as sess:
-      logits, endpoints = model.inference(inputs, num_classes=2, model_type='conv_lstm', is_training=True)
-      init = tf.global_variables_initializer()
-      sess.run(init)
-      logit_values = sess.run([logits], feed_dict={inputs:np.random.random((64, 10, 53, 64, 37, 1))})
-      print(logit_values[0].shape)
-    # tr = Trainer(model=model, dataset=dataset)
-    # FLAGS.checkpoint_dir = os.path.join(FLAGS.train_dir, 'test_run')
-    FLAGS.eval_dir = os.path.join(FLAGS.checkpoint_dir, 'eval')
-    FLAGS.batch_size = 20
+  logging.basicConfig(filename='joblog_LSO{0}.log'.format(''.join([str(i) for i in fold_to_run])), level=logging.DEBUG)
+
+  log_info_string('Model type is : {0}'.format(FLAGS.model_type))
+  # Load the dataset
+  fold_pairs = []
+
+  model = TFModel()
+  dataset = TFDataset(data_dir='/braintree/data2/active/users/bashivan/Data/fmri_conv_orig')
+  tr = Trainer(model=model, dataset=dataset)
+  log_info_string("Loading data...")
+  tr.load_data(random=True)
+
+  sub_nums = tr.subjects
+  subs_in_fold = np.ceil(np.max(sub_nums) / float(FLAGS.num_folds))
+
+
+  # Leave-subject-out cross validation
+  # for i in range(1, np.max(sub_nums+1)):
+  #   '''
+  #   for each kfold selects fold window to collect indices for test dataset and the rest becomes train
+  #   '''
+  #   test_ids = sub_nums == i
+  #   train_ids = ~ test_ids
+  #   fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
+
+  # n-fold cross validation
+  for i in range(FLAGS.num_folds):
+    '''
+    for each kfold selects fold window to collect indices for test dataset and the rest becomes train
+    '''
+    test_ids = np.bitwise_and(sub_nums >= subs_in_fold * (i), sub_nums < subs_in_fold * (i + 1))
+    train_ids = ~ test_ids
+    fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
+
+  for fold_num, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
+    log_info_string('Beginning fold {0} out of {1}'.format(fold_num + 1, len(fold_pairs)))
+    # Divide the dataset into train, validation and test sets
+
+    log_info_string('Splitting the data...')
+    tr.split_data(fold)
+    log_info_string('Preprocessing data...')
+    # tr.preprocess_data()
+    log_info_string('Training...')
+    FLAGS.train_dir = os.path.join(FLAGS.train_dir, str(fold_num))
+    tr.train(fold_num=fold_num)
+
+
+  # Initializing output variables
+  validScores, testScores = [], []
+  trainLoss = np.zeros((len(fold_pairs), FLAGS.num_epochs))
+  validLoss = np.zeros((len(fold_pairs), FLAGS.num_epochs))
+  validEpochAccu = np.zeros((len(fold_pairs), FLAGS.num_epochs))
+  testEpochAccu = np.zeros((len(fold_pairs), FLAGS.num_epochs))
+
+  log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
+
+
+  ###################################
+  # Test
+  # with tf.Graph().as_default():
+  #   inputs = tf.placeholder(tf.float32, shape=(16, None, 53, 64, 37, 1))
+  #
+  #   model = TFModel()
+  #   FLAGS.batch_size = 10
+  #   dataset = TFDataset(data_dir='/braintree/data2/active/users/bashivan/Data/fmri_conv_orig')
+  #   with tf.Session() as sess:
+  #     logits, endpoints = model.inference(inputs, num_classes=2, model_type='conv_lstm', is_training=True)
+  #     init = tf.global_variables_initializer()
+  #     sess.run(init)
+  #     logit_values = sess.run([logits], feed_dict={inputs: np.random.random((16, 10, 53, 64, 37, 1))})
+  #     print(logit_values[0].shape)
+  #   # tr = Trainer(model=model, dataset=dataset)
+  #   # FLAGS.checkpoint_dir = os.path.join(FLAGS.train_dir, 'test_run')
+  #   FLAGS.eval_dir = os.path.join(FLAGS.checkpoint_dir, 'eval')
 
 
 

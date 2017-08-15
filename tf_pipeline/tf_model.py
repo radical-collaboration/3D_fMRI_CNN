@@ -16,11 +16,13 @@ def _stride_arr(stride):
   """Map a stride scalar to the stride array for tf.nn.conv3d."""
   return [1, stride, stride, stride, 1]
 
+
 class TFModel(object):
   def __init__(self):
     self.batch_size = FLAGS.batch_size
     self.WEIGHT_DECAY = 0.0
     self.endpoints = dict()
+    self.MOVING_AVERAGE_DECAY = 0.9999
 
   def arg_scope(self):
     with slim.arg_scope([slim.conv2d, slim.fully_connected],
@@ -91,17 +93,16 @@ class TFModel(object):
       for l in range(s):
         with tf.variable_scope('C_{0}_{1}'.format(i, l)) as scope:
           num_filters = n_filters_first * (2 ** i)
-          net = self._conv3d(inputs,
+          net = self._conv3d(net,
                              num_filters=num_filters,
                              filter_size=[filter_size]*3,
                              padding=padding)
-          self.endpoints[scope] = net
+          self.endpoints[scope.name] = net
       net = tf.nn.max_pool3d(net, _stride_arr(filter_size), _stride_arr(2), padding='VALID')
     return net
 
   def build_conv_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
                       lstm_dropout_keep_prob=1.0, dropout_keep_prob=1.0):
-
     def lstm_cell():
       # the BasicLSTMCell will need a reuse parameter which is unfortunately not
       # defined in TensorFlow 1.0. To maintain backwards compatibility, we add
@@ -114,6 +115,7 @@ class TFModel(object):
         return tf.contrib.rnn.BasicLSTMCell(
           num_lstm_units, forget_bias=0.0, state_is_tuple=True)
 
+    attn_cell = lstm_cell
     if is_training and lstm_dropout_keep_prob < 1:
       def attn_cell():
         return tf.contrib.rnn.DropoutWrapper(
@@ -121,23 +123,22 @@ class TFModel(object):
 
     if num_lstm_layers > 1:
       cell = tf.contrib.rnn.MultiRNNCell(
-        [lstm_cell() for _ in range(num_lstm_layers)], state_is_tuple=True)
+        [attn_cell() for _ in range(num_lstm_layers)], state_is_tuple=True)
     else:
-      cell = lstm_cell()
+      cell = attn_cell()
     current_state = cell.zero_state(self.batch_size, tf.float32)
-
     # Define convnets
     convnets = []
     for t in range(inputs.get_shape()[0].value):
       with tf.variable_scope('conv'):
         if t > 0:
           tf.get_variable_scope().reuse_variables()
-        with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
-          net = self.build_cnn(inputs[t])
+        net = self.build_cnn(inputs[t])
         net = flatten(net)
       with tf.variable_scope('lstm'):
         (net, current_state) = cell(net, current_state)
     assert 'net' in locals()
+
     self.endpoints['lstm_out'] = net
 
     with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
@@ -165,9 +166,9 @@ class TFModel(object):
             model_type,
             dropout_keep_prob=0.8,
             is_training=False,
-            spatial_squeeze=True,
             scope='conv_lstm'):
-
+    # switch the N and T axes in the input to make it (T, N, x, y , z, 1)
+    inputs = tf.transpose(inputs, [1, 0, 2, 3, 4, 5])
     logits, endpoints = self.build_conv_lstm(inputs,
                                              num_classes=num_classes,
                                              is_training=is_training,
@@ -177,17 +178,17 @@ class TFModel(object):
   def inference(self,
                 inputs,
                 num_classes,
-                model_type,
+                model_type='lstm',
                 dropout_keep_prob=0.8,
                 is_training=False,
-                spatial_squeeze=True,
                 scope='conv_lstm'):
 
     with slim.arg_scope(self.arg_scope()):
-      logits, endpoints = self.build_conv_lstm(inputs,
-                                               num_classes=num_classes,
-                                               is_training=is_training,
-                                               dropout_keep_prob=dropout_keep_prob)
+      logits, endpoints = self.model(inputs,
+                                     num_classes=num_classes,
+                                     model_type=model_type,
+                                     dropout_keep_prob=dropout_keep_prob,
+                                     is_training=is_training)
     return logits, endpoints
 
   def loss(self,
@@ -195,7 +196,7 @@ class TFModel(object):
            labels,
            batch_size=None):
     print('Using default loss (softmax-Xentropy)...')
-    if not batch_size:
+    if batch_size is None:
       batch_size = self.batch_size
 
     # Reshape the labels into a dense Tensor of
@@ -212,9 +213,13 @@ class TFModel(object):
                                       label_smoothing=0.1,
                                       weights=1.0)
 
-  def lr_generator(self, global_step=None, decay_steps=None):
-    print('Using default learning rate scheduler (CONSTANT)...')
-    lr = ops.convert_to_tensor(FLAGS.initial_learning_rate, name="learning_rate")
+  def lr_generator(self, global_step, decay_steps):
+    # Decay the learning rate exponentially based on the number of steps.
+    lr = tf.train.exponential_decay(FLAGS.initial_learning_rate,
+                                    global_step,
+                                    decay_steps,
+                                    FLAGS.learning_rate_decay_factor,
+                                    staircase=True)
     return lr
 
   def optimizer(self, lr):
