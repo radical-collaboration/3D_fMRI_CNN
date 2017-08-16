@@ -93,7 +93,7 @@ class TFModel(object):
     return net
 
   def build_conv_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
-                      lstm_dropout_keep_prob=1.0, dropout_keep_prob=1.0):
+                      lstm_dropout_keep_prob=0.8, dropout_keep_prob=0.8):
     def lstm_cell():
       # the BasicLSTMCell will need a reuse parameter which is unfortunately not
       # defined in TensorFlow 1.0. To maintain backwards compatibility, we add
@@ -117,7 +117,7 @@ class TFModel(object):
         [attn_cell() for _ in range(num_lstm_layers)], state_is_tuple=True)
     else:
       cell = attn_cell()
-    current_state = cell.zero_state(self.batch_size, tf.float32)
+    current_state = cell.zero_state(FLAGS.batch_size / FLAGS.num_gpus, tf.float32)
     # Define convnets
     convnets = []
     for t in range(inputs.get_shape()[0].value):
@@ -188,7 +188,7 @@ class TFModel(object):
            batch_size=None):
     print('Using default loss (softmax-Xentropy)...')
     if batch_size is None:
-      batch_size = self.batch_size
+      batch_size = FLAGS.batch_size / FLAGS.num_gpus
 
     # Reshape the labels into a dense Tensor of
     # shape [FLAGS.batch_size, num_classes].

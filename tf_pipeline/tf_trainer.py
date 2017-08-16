@@ -80,15 +80,8 @@ tf.app.flags.DEFINE_string('subset', 'train',
 tf.app.flags.DEFINE_integer('num_checkpoints_tosave', 5, "Number of checkpoints to save.")
 
 # Image related flags
-tf.app.flags.DEFINE_integer('num_readers', 1,
-                            """Number of parallel readers during train.""")
 tf.app.flags.DEFINE_integer('batch_size', 30,
                             """Number of images to process in a batch.""")
-tf.app.flags.DEFINE_integer('image_size', 32,
-                            """Provide square images of this size.""")
-tf.app.flags.DEFINE_integer('num_preprocess_threads', 1,
-                            """Number of preprocessing threads per tower. """
-                            """Please make this a multiple of 4.""")
 
 
 def log_info_string(input_string):
@@ -198,8 +191,8 @@ class Trainer(object):
     N = shape[0]
     V = reduce(lambda x, y: x*y, self.x_train.shape[2:5])
     self.x_train = np.reshape(self.x_train, [N, T_1, 1, V])
-    x_train_mean = np.mean(self.x_train, axis=(1, 2), keepdims=True)
-    x_train_variance = np.var(self.x_train, axis=(1, 2), keepdims=True)
+    x_train_mean = np.mean(self.x_train, axis=(0, 1), keepdims=True)
+    x_train_variance = np.var(self.x_train, axis=(0, 1), keepdims=True)
     self.x_train = (self.x_train - x_train_mean) / (0.001 + x_train_variance)
     self.x_train = np.reshape(self.x_train, shape)
 
@@ -207,8 +200,8 @@ class Trainer(object):
     shape = self.x_val.shape
     N = shape[0]
     self.x_val = np.reshape(self.x_val, [N, T_1, 1,V])
-    x_val_mean = np.mean(self.x_val, axis=(1, 2), keepdims=True)
-    x_val_variance = np.std(self.x_val, axis=(1, 2), keepdims=True)
+    x_val_mean = np.mean(self.x_val, axis=(0, 1), keepdims=True)
+    x_val_variance = np.std(self.x_val, axis=(0, 1), keepdims=True)
     self.x_val = (self.x_val - x_val_mean) / (0.001 + x_val_variance)
     self.x_val = np.reshape(self.x_val, shape)
 
@@ -216,8 +209,8 @@ class Trainer(object):
     shape = self.x_test.shape
     N = shape[0]
     self.x_test = np.reshape(self.x_test, [N, T_1, 1, V])
-    x_test_mean = np.mean(self.x_test, axis=(1, 2), keepdims=True)
-    x_test_variance = np.std(self.x_test, axis=(1, 2), keepdims=True)
+    x_test_mean = np.mean(self.x_test, axis=(0, 1), keepdims=True)
+    x_test_variance = np.std(self.x_test, axis=(0, 1), keepdims=True)
     self.x_test = (self.x_test - x_test_mean) / (0.001 + x_test_variance)
     self.x_test = np.reshape(self.x_test, shape)
 
@@ -403,10 +396,6 @@ class Trainer(object):
       assert FLAGS.batch_size % FLAGS.num_gpus == 0, (
         'Batch size must be divisible by number of GPUs')
 
-      # Override the number of preprocessing threads to account for the increased
-      # number of GPU towers.
-      num_preprocess_threads = FLAGS.num_preprocess_threads * FLAGS.num_gpus
-
       inputs_ph = tf.placeholder(tf.float32,
                                  shape=(None, FLAGS.num_time_steps) + self.features.shape[2:],
                                  name='inputs_ph')
@@ -541,18 +530,19 @@ class Trainer(object):
 
       log_steps = [100, 100, 1000]
       step = 0
-      val_acc, val_loss = 0, 0
+      best_validation_acc = 0
+
       for epoch in xrange(FLAGS.num_epochs):
-        start_time = time.time()
+        epoch_start_time = time.time()
+        epoch_acc, epoch_loss = 0, 0
         for batch_num, batch in enumerate(self.iterate_minibatches(subset='train')):
           inputs, targets = batch
           start_time = time.time()
-          _, l, acc, g_vals, endpoints_vals = sess.run([train_op, loss, batch_accuracy, grads, self.model.endpoints],
-                                   feed_dict={inputs_ph: inputs, labels_ph: targets})
+          _, l, acc = sess.run([train_op, loss, batch_accuracy],
+                               feed_dict={inputs_ph: inputs, labels_ph: targets})
           duration = time.time() - start_time
-          val_acc += acc
-          val_loss += l
-
+          epoch_acc += acc
+          epoch_loss += l
 
           assert not np.isnan(l), 'Model diverged with loss = NaN'
 
@@ -573,24 +563,40 @@ class Trainer(object):
             saver.save(sess, checkpoint_path, global_step=step)
 
           step += 1
-        av_train_acc = val_acc / (batch_num+1)
-        av_train_loss = val_loss / (batch_num+1)
+        epoch_train_acc = epoch_acc / (batch_num+1)
+        epoch_train_loss = epoch_loss / (batch_num+1)
 
-        val_acc, val_loss = 0, 0
+        epoch_acc, epoch_loss = 0, 0
         for batch_num, batch in enumerate(self.iterate_minibatches(subset='val')):
           inputs, targets = batch
           [l, acc] = sess.run([loss, batch_accuracy], feed_dict={inputs_ph: inputs, labels_ph: targets})
-          val_acc += acc
-          val_loss += l
-        av_val_acc = val_acc / (batch_num+1)
-        av_val_loss = val_loss / (batch_num+1)
+          epoch_acc += acc
+          epoch_loss += l
+        epoch_val_acc = epoch_acc / (batch_num+1)
+        epoch_val_loss = epoch_loss / (batch_num+1)
 
         log_info_string("Epoch {} of {} took {:.3f}s".format(
-          epoch + 1, FLAGS.num_epochs, time.time() - start_time))
-        log_info_string("  training loss:\t\t{:.6f}".format(av_train_loss))
-        log_info_string("  training accuracy:\t\t{:.2f} %".format(av_train_acc * 100))
-        log_info_string("  validation loss:\t\t{:.6f}".format(av_val_loss))
-        log_info_string("  validation accuracy:\t\t{:.2f} %".format(av_val_acc * 100))
+          epoch + 1, FLAGS.num_epochs, time.time() - epoch_start_time))
+        log_info_string("  training loss:\t\t{:.6f}".format(epoch_train_loss))
+        log_info_string("  training accuracy:\t\t{:.2f} %".format(epoch_train_acc * 100))
+        log_info_string("  validation loss:\t\t{:.6f}".format(epoch_val_loss))
+        log_info_string("  validation accuracy:\t\t{:.2f} %".format(epoch_val_acc * 100))
+
+        if best_validation_acc > epoch_val_acc:
+          best_validation_accu = epoch_val_acc
+
+          epoch_acc, epoch_loss = 0, 0
+          for batch_num, batch in enumerate(self.iterate_minibatches(subset='test')):
+            inputs, targets = batch
+            [l, acc] = sess.run([loss, batch_accuracy], feed_dict={inputs_ph: inputs, labels_ph: targets})
+            epoch_acc += acc
+            epoch_loss += l
+          epoch_test_acc = epoch_acc / (batch_num + 1)
+          epoch_test_loss = epoch_loss / (batch_num + 1)
+
+          log_info_string("Test results:")
+          log_info_string("  test loss:\t\t\t{:.6f}".format(epoch_test_loss))
+          log_info_string("  test accuracy:\t\t{:.2f} %".format(epoch_test_acc * 100))
 
       return 0
 
