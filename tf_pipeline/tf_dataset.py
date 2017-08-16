@@ -1,5 +1,9 @@
 import os
 import h5py
+import tensorflow as tf
+import pdb
+
+FLAGS = tf.app.flags.FLAGS
 
 class TFDataset(object):
   def __init__(self, data_dir, fold_num=0):
@@ -9,9 +13,10 @@ class TFDataset(object):
     self._features = h5py.File(os.path.join(data_dir, 'shuffled_output_features.hdf5'))['features']
     self._labels = h5py.File(os.path.join(data_dir, 'shuffled_output_labels.hdf5'))['labels']
 
-  def num_examples_per_epoch(self, subset, fold_num):
-    # Todo: return the number of examples per epoch depending on the fold number and subset (train-valid-test)
-    return 37000
+  def num_examples_per_epoch(self, subset='train', fold_num=0):
+    if subset == 'train':
+      return (self._features.shape[0] / FLAGS.num_folds * (FLAGS.num_folds - 2)) * \
+             (self._features.shape[-1] - FLAGS.num_time_steps)
 
   def get_features(self):
     return self._features

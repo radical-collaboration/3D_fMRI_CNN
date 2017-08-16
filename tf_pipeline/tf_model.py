@@ -93,7 +93,7 @@ class TFModel(object):
     return net
 
   def build_conv_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
-                      lstm_dropout_keep_prob=0.8, dropout_keep_prob=0.8):
+                      lstm_dropout_keep_prob=0.7, dropout_keep_prob=0.8):
     def lstm_cell():
       # the BasicLSTMCell will need a reuse parameter which is unfortunately not
       # defined in TensorFlow 1.0. To maintain backwards compatibility, we add

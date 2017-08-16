@@ -80,7 +80,7 @@ tf.app.flags.DEFINE_string('subset', 'train',
 tf.app.flags.DEFINE_integer('num_checkpoints_tosave', 5, "Number of checkpoints to save.")
 
 # Image related flags
-tf.app.flags.DEFINE_integer('batch_size', 30,
+tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
 
 
@@ -311,7 +311,7 @@ class Trainer(object):
       loss_name = re.sub('%s_[0-9]*/' % 'tower', '', l.op.name)
       # Name each loss as '(raw)' and name the moving average version of the loss
       # as the original loss name.
-      tf.summary.scalar(loss_name + ' (raw)', l)
+      tf.summary.scalar(loss_name + '_raw', l)
       tf.summary.scalar(loss_name, loss_averages.average(l))
 
     with tf.control_dependencies([loss_averages_op]):
@@ -582,8 +582,8 @@ class Trainer(object):
         log_info_string("  validation loss:\t\t{:.6f}".format(epoch_val_loss))
         log_info_string("  validation accuracy:\t\t{:.2f} %".format(epoch_val_acc * 100))
 
-        if best_validation_acc > epoch_val_acc:
-          best_validation_accu = epoch_val_acc
+        if best_validation_acc < epoch_val_acc:
+          best_validation_acc = epoch_val_acc
 
           epoch_acc, epoch_loss = 0, 0
           for batch_num, batch in enumerate(self.iterate_minibatches(subset='test')):
@@ -602,37 +602,37 @@ class Trainer(object):
 
 
 def main(_):
-  fold_to_run = int(FLAGS.fold_to_run)
-  if fold_to_run == -1:
-    fold_to_run = range(FLAGS.num_folds)
-  else:
-    fold_to_run = [fold_to_run]
+  import sys
+  sys.path.insert(0, '/braintree/home/bashivan/dropbox/Codes/3D_fMRI_CNN/tf_pipeline/')
+  import os
+  import logging
+  from tf_model import TFModel
+  from tf_dataset import TFDataset
+  import numpy as np
+  import tensorflow as tf
+  import numpy as np
 
-  logging.basicConfig(filename='joblog_LSO{0}.log'.format(''.join([str(i) for i in fold_to_run])), level=logging.DEBUG)
+  # os.environ['CUDA_VISIBLE_DEVICES'] = '0,2'
 
-  log_info_string('Model type is : {0}'.format(FLAGS.model_type))
+  FLAGS.initial_learning_rate = 0.001
+  # FLAGS.batch_size = 64
+  # FLAGS.num_gpus = 2
+  FLAGS.num_epochs_per_decay = 3
+  # FLAGS.num_time_steps = 64
+
+  fold_to_run = 0
+
   # Load the dataset
   fold_pairs = []
 
   model = TFModel()
-  dataset = TFDataset(data_dir='/braintree/data2/active/users/bashivan/Data/fmri_conv_orig')
+  dataset = TFDataset(data_dir=FLAGS.data_dir)
   tr = Trainer(model=model, dataset=dataset)
-  log_info_string("Loading data...")
-  tr.load_data(random=True)
+  print("Loading data...")
+  tr.load_data(random=False)
 
   sub_nums = tr.subjects
-  subs_in_fold = np.ceil(np.max(sub_nums) / float(FLAGS.num_folds))
-
-
-  # Leave-subject-out cross validation
-  # for i in range(1, np.max(sub_nums+1)):
-  #   '''
-  #   for each kfold selects fold window to collect indices for test dataset and the rest becomes train
-  #   '''
-  #   test_ids = sub_nums == i
-  #   train_ids = ~ test_ids
-  #   fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
-
+  subs_in_fold = np.ceil(np.max(sub_nums) / float(10))
   # n-fold cross validation
   for i in range(FLAGS.num_folds):
     '''
@@ -642,30 +642,20 @@ def main(_):
     train_ids = ~ test_ids
     fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
 
-  for fold_num, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
-    log_info_string('Beginning fold {0} out of {1}'.format(fold_num + 1, len(fold_pairs)))
-    # Divide the dataset into train, validation and test sets
+    fold_num = 0
+    fold = fold_pairs[0]
 
-    log_info_string('Splitting the data...')
-    tr.split_data(fold)
-    log_info_string('Preprocessing data...')
-    # tr.preprocess_data()
-    log_info_string('Training...')
     FLAGS.train_dir = os.path.join(FLAGS.train_dir, str(fold_num))
+
+    print('Splitting the data...')
+    tr.split_data(fold)
+    print('Preprocessing data...')
+    tr.preprocess_data()
+
     tr.train(fold_num=fold_num)
 
 
-  # Initializing output variables
-  validScores, testScores = [], []
-  trainLoss = np.zeros((len(fold_pairs), FLAGS.num_epochs))
-  validLoss = np.zeros((len(fold_pairs), FLAGS.num_epochs))
-  validEpochAccu = np.zeros((len(fold_pairs), FLAGS.num_epochs))
-  testEpochAccu = np.zeros((len(fold_pairs), FLAGS.num_epochs))
-
-  log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
-
-
-  ###################################
+    ###################################
   # Test
   # with tf.Graph().as_default():
   #   inputs = tf.placeholder(tf.float32, shape=(16, None, 53, 64, 37, 1))
@@ -682,7 +672,6 @@ def main(_):
   #   # tr = Trainer(model=model, dataset=dataset)
   #   # FLAGS.checkpoint_dir = os.path.join(FLAGS.train_dir, 'test_run')
   #   FLAGS.eval_dir = os.path.join(FLAGS.checkpoint_dir, 'eval')
-
 
 
 
