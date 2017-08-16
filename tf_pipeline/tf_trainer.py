@@ -55,7 +55,7 @@ tf.app.flags.DEFINE_boolean('log_device_placement', False,
 tf.app.flags.DEFINE_integer('seed', 0,
                             """Random seed value.""")
 
-tf.app.flags.DEFINE_float('initial_learning_rate', 0.001,
+tf.app.flags.DEFINE_float('initial_learning_rate', 0.0001,
                           """Initial learning rate.""")
 
 tf.app.flags.DEFINE_float('num_epochs_per_decay', 1.0,
@@ -82,7 +82,7 @@ tf.app.flags.DEFINE_integer('num_checkpoints_tosave', 5, "Number of checkpoints 
 # Image related flags
 tf.app.flags.DEFINE_integer('num_readers', 1,
                             """Number of parallel readers during train.""")
-tf.app.flags.DEFINE_integer('batch_size', 10,
+tf.app.flags.DEFINE_integer('batch_size', 30,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_integer('image_size', 32,
                             """Provide square images of this size.""")
@@ -135,19 +135,18 @@ class Trainer(object):
                                      axis=-1)  # Add another filler dimension for the samples
 
       # change labels from -1/1 to 0/1
-      self.labels = (np.array(self.dataset.get_labels(), dtype=int) == 1).astype(int)
+      self.labels = (np.array(self.dataset.get_labels()).astype(int) == 1).astype(np.int32)
 
-      subjects = self.dataset.get_subjects()
+      self.subjects = np.array(self.dataset.get_subjects()).astype(np.int32)
       # change subject_IDs to scale 0-94
       unique_IDs = []
-      [unique_IDs.append(i) for i in subjects if not unique_IDs.count(i)]
+      [unique_IDs.append(i) for i in self.subjects if not unique_IDs.count(i)]
       dictionary_IDs = {x: i for i, x in enumerate(unique_IDs, start=1)}
 
-      for i in range(len(subjects)):
-        subjects[i] = dictionary_IDs[subjects[i]]
+      for i in range(len(self.subjects)):
+        self.subjects[i] = dictionary_IDs[self.subjects[i]]
 
-      self.subjects = np.asarray(subjects, dtype=int)
-      self.runs = np.asarray(self.dataset.get_runs(), dtype=int)
+      self.runs = np.asarray(self.dataset.get_runs()).astype(np.int32)
 
   def split_data(self, fold_ind):
     """
@@ -156,7 +155,6 @@ class Trainer(object):
 
     :param
     """
-    pdb.set_trace()
     # Data from a randomly subset of subjects is used as validation
     train_subjects = np.unique(self.subjects[fold_ind[0]])
     test_subjects = np.unique(self.subjects[fold_ind[1]])
@@ -200,8 +198,8 @@ class Trainer(object):
     N = shape[0]
     V = reduce(lambda x, y: x*y, self.x_train.shape[2:5])
     self.x_train = np.reshape(self.x_train, [N, T_1, 1, V])
-    x_train_mean = np.mean(self.x_train, axis=(0, 1), keepdims=True)
-    x_train_variance = np.var(self.x_train, axis=(0, 1), keepdims=True)
+    x_train_mean = np.mean(self.x_train, axis=(1, 2), keepdims=True)
+    x_train_variance = np.var(self.x_train, axis=(1, 2), keepdims=True)
     self.x_train = (self.x_train - x_train_mean) / (0.001 + x_train_variance)
     self.x_train = np.reshape(self.x_train, shape)
 
@@ -209,8 +207,8 @@ class Trainer(object):
     shape = self.x_val.shape
     N = shape[0]
     self.x_val = np.reshape(self.x_val, [N, T_1, 1,V])
-    x_val_mean = np.mean(self.x_val, axis=(0, 1), keepdims=True)
-    x_val_variance = np.std(self.x_val, axis=(0, 1), keepdims=True)
+    x_val_mean = np.mean(self.x_val, axis=(1, 2), keepdims=True)
+    x_val_variance = np.std(self.x_val, axis=(1, 2), keepdims=True)
     self.x_val = (self.x_val - x_val_mean) / (0.001 + x_val_variance)
     self.x_val = np.reshape(self.x_val, shape)
 
@@ -218,8 +216,8 @@ class Trainer(object):
     shape = self.x_test.shape
     N = shape[0]
     self.x_test = np.reshape(self.x_test, [N, T_1, 1, V])
-    x_test_mean = np.mean(self.x_test, axis=(0, 1), keepdims=True)
-    x_test_variance = np.std(self.x_test, axis=(0, 1), keepdims=True)
+    x_test_mean = np.mean(self.x_test, axis=(1, 2), keepdims=True)
+    x_test_variance = np.std(self.x_test, axis=(1, 2), keepdims=True)
     self.x_test = (self.x_test - x_test_mean) / (0.001 + x_test_variance)
     self.x_test = np.reshape(self.x_test, shape)
 
@@ -306,7 +304,7 @@ class Trainer(object):
     if model.WEIGHT_DECAY > 0.0:
       total_loss = tf.add_n(losses + regularization_losses, name='total_loss')
     else:
-      total_loss = losses
+      total_loss = tf.add_n(losses, name='total_loss')
 
     # Compute the moving average of all individual losses and the total loss.
     loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
@@ -444,8 +442,8 @@ class Trainer(object):
             # final tower. Ideally, we should grab the updates from all towers
             # but these stats accumulate extremely fast so we can ignore the
             # other stats from the other towers without significant detriment.
-            batchnorm_updates = tf.get_collection(tf.GraphKeys.UPDATE_OPS,
-                                                  scope)
+            # batchnorm_updates = tf.get_collection(tf.GraphKeys.UPDATE_OPS,
+            #                                       scope)
 
             # Calculate the gradients for the batch of data on this ImageNet
             # tower.
@@ -502,9 +500,10 @@ class Trainer(object):
                               tf.moving_average_variables())
       variables_averages_op = variable_averages.apply(variables_to_average)
       # Group all updates to into a single train op.
-      batchnorm_updates_op = tf.group(*batchnorm_updates)
-      train_op = tf.group(apply_gradient_op, variables_averages_op,
-                          batchnorm_updates_op)
+      # batchnorm_updates_op = tf.group(*batchnorm_updates)
+      # train_op = tf.group(apply_gradient_op, variables_averages_op,
+      #                     batchnorm_updates_op)
+      train_op = tf.group(apply_gradient_op, variables_averages_op)
 
       # Analyze memory usage
       # run_metadata = tf.RunMetadata()
@@ -548,7 +547,7 @@ class Trainer(object):
         for batch_num, batch in enumerate(self.iterate_minibatches(subset='train')):
           inputs, targets = batch
           start_time = time.time()
-          _, l, acc = sess.run([train_op, loss, batch_accuracy],
+          _, l, acc, g_vals, endpoints_vals = sess.run([train_op, loss, batch_accuracy, grads, self.model.endpoints],
                                    feed_dict={inputs_ph: inputs, labels_ph: targets})
           duration = time.time() - start_time
           val_acc += acc

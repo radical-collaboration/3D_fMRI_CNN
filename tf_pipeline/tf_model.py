@@ -20,7 +20,7 @@ def _stride_arr(stride):
 class TFModel(object):
   def __init__(self):
     self.batch_size = FLAGS.batch_size
-    self.WEIGHT_DECAY = 0.0
+    self.WEIGHT_DECAY = 0.00001
     self.endpoints = dict()
     self.MOVING_AVERAGE_DECAY = 0.9999
 
@@ -32,16 +32,6 @@ class TFModel(object):
         with slim.arg_scope([slim.max_pool2d], padding='VALID') as arg_sc:
           return arg_sc
 
-  def _conv(self, name, x, filter_size, in_filters, out_filters, strides):
-    """Convolution."""
-    with tf.variable_scope(name):
-      n = filter_size * filter_size * out_filters
-      kernel = slim.variable(
-        'DW', [filter_size, filter_size, in_filters, out_filters],
-        tf.float32, initializer=tf.random_normal_initializer(
-          stddev=np.sqrt(2.0 / n)))
-      return tf.nn.conv2d(x, kernel, strides, padding='SAME')
-
   def _relu(self, x, leakiness=0.0):
     """Relu, with optional leaky support."""
     return tf.where(tf.less(x, 0.0), leakiness * x, x, name='leaky_relu')
@@ -49,7 +39,8 @@ class TFModel(object):
   def _fully_connected(self, x, out_dim):
     """FullyConnected layer for final output."""
 
-    x = tf.reshape(x, [x.get_shape()[0].value, -1])
+    # x = tf.reshape(x, [x.get_shape()[0].value, -1])
+    x = flatten(x)
     w = slim.variable(
       'DW', [x.get_shape()[1], out_dim],
       initializer=tf.uniform_unit_scaling_initializer(factor=1.0))
@@ -71,10 +62,10 @@ class TFModel(object):
     stride_vec = _stride_arr(stride)
     filter_shape = filter_size + [inputs.get_shape()[-1].value, num_filters]
     n = reduce(lambda x, y: x * y, filter_size) * num_filters
-    filt = slim.variable('DW', filter_shape,
-                           tf.float32,
-                           initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)))
+    filt = slim.variable('DW', filter_shape, tf.float32,
+                         initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)))
     net = tf.nn.conv3d(inputs, filter=filt, strides=stride_vec, padding=padding)
+    net = tf.nn.relu(net)
     return net
 
   def build_cnn(self, inputs, num_layers=(2, 1), filter_size=3, n_filters_first=16, padding='SAME'):
@@ -98,7 +89,7 @@ class TFModel(object):
                              filter_size=[filter_size]*3,
                              padding=padding)
           self.endpoints[scope.name] = net
-      net = tf.nn.max_pool3d(net, _stride_arr(filter_size), _stride_arr(2), padding='VALID')
+      net = tf.nn.max_pool3d(net, _stride_arr(2), _stride_arr(2), padding='VALID')
     return net
 
   def build_conv_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
@@ -225,6 +216,7 @@ class TFModel(object):
   def optimizer(self, lr):
     print('Using ADAM optimizer...')
     opt = tf.train.AdamOptimizer(lr)
+    # opt = tf.train.MomentumOptimizer(lr, 0.9, use_nesterov=True)
     return opt
 
   def _activation_summary(self, x):
