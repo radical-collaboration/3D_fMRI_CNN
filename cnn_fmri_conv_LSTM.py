@@ -82,7 +82,6 @@ def load_data():
   #  '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_subjects.hdf5', 'r')
   #i = h5py.File(
   #  '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig/shuffled_output_features.hdf5', 'r')
-  subjects, labels, features, runs = [], [], [], []
 
   subjects = h['subjects'][()]
   labels = g['labels'][()]
@@ -458,22 +457,9 @@ def iterate_minibatches(inputs, targets, subject_values, batchsize, shuffle=Fals
         Y = []
         L = []
 
-
-'''
-  input_len = 1
-  assert input_len == len(targets)
-  if shuffle:
-    indices = np.arange(input_len)
-    np.random.shuffle(indices)
-  for start_idx in range(0, input_len - batchsize + 1, batchsize):
-    if shuffle:
-      excerpt = indices[start_idx:start_idx + batchsize]
-    else:
-      excerpt = slice(start_idx, start_idx + batchsize)
-    yield inputs[:, excerpt], targets[excerpt]
-'''
-
 # ############################## Main program ################################
+
+
 def main(args):
   global num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels
   # print num_epochs, batch_size, num_folds, num_classes, grad_clip, num_input_channels

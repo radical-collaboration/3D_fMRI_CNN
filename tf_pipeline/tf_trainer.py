@@ -14,11 +14,9 @@ import scipy.misc
 import logging
 import numpy as np
 import tensorflow as tf
+import pandas as pd
 
 import tensorflow.contrib.slim as slim
-from tf_model import TFModel
-from tf_dataset import TFDataset
-
 import pdb
 
 FLAGS = tf.app.flags.FLAGS
@@ -449,9 +447,9 @@ class Trainer(object):
                     TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
             sys.stdout.write('total_params: %d\n' % param_stats.total_parameters)
 
-            tf.contrib.tfprof.model_analyzer.print_model_analysis(
-                tf.get_default_graph(),
-                tfprof_options=tf.contrib.tfprof.model_analyzer.FLOAT_OPS_OPTIONS)
+            # tf.contrib.tfprof.model_analyzer.print_model_analysis(
+            #     tf.get_default_graph(),
+            #     tfprof_options=tf.contrib.tfprof.model_analyzer.FLOAT_OPS_OPTIONS)
 
       # We must calculate the mean of each gradient. Note that this is the
       # synchronization point across all towers.
@@ -531,7 +529,7 @@ class Trainer(object):
       log_steps = [100, 100, 1000]
       step = 0
       best_validation_acc = 0
-
+      results = pd.DataFrame()
       for epoch in xrange(FLAGS.num_epochs):
         epoch_start_time = time.time()
         epoch_acc, epoch_loss = 0, 0
@@ -598,29 +596,35 @@ class Trainer(object):
           log_info_string("  test loss:\t\t\t{:.6f}".format(epoch_test_loss))
           log_info_string("  test accuracy:\t\t{:.2f} %".format(epoch_test_acc * 100))
 
-      return 0
+        results = results.append({'training_loss': epoch_train_loss,
+                                  'training_acc': epoch_train_acc,
+                                  'valid_loss': epoch_val_loss,
+                                  'valid_acc': epoch_val_acc,
+                                  'test_loss': epoch_test_loss,
+                                  'test_acc': epoch_test_acc}, ignore_index=True)
+      return results
 
 
 def main(_):
-  import sys
-  sys.path.insert(0, '/braintree/home/bashivan/dropbox/Codes/3D_fMRI_CNN/tf_pipeline/')
+  # import sys
+  # sys.path.insert(0, '/braintree/home/bashivan/dropbox/Codes/3D_fMRI_CNN/tf_pipeline/')
   import os
-  import logging
   from tf_model import TFModel
   from tf_dataset import TFDataset
-  import numpy as np
-  import tensorflow as tf
   import numpy as np
 
   # os.environ['CUDA_VISIBLE_DEVICES'] = '0,2'
 
-  FLAGS.initial_learning_rate = 0.001
+  FLAGS.initial_learning_rate = 0.0001
   # FLAGS.batch_size = 64
   # FLAGS.num_gpus = 2
   FLAGS.num_epochs_per_decay = 3
   # FLAGS.num_time_steps = 64
 
-  fold_to_run = 0
+  if FLAGS.fold_to_run == -1:
+    fold_to_run = range(FLAGS.fold_to_run)
+  else:
+    fold_to_run = [FLAGS.fold_to_run]
 
   # Load the dataset
   fold_pairs = []
@@ -634,6 +638,7 @@ def main(_):
   sub_nums = tr.subjects
   subs_in_fold = np.ceil(np.max(sub_nums) / float(10))
   # n-fold cross validation
+  fold_results = []
   for i in range(FLAGS.num_folds):
     '''
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
@@ -652,8 +657,10 @@ def main(_):
     print('Preprocessing data...')
     tr.preprocess_data()
 
-    tr.train(fold_num=fold_num)
-
+    fold_results.append(tr.train(fold_num=fold_num))
+    fold_results = pd.concat(fold_results)
+    fold_results.to_pickle(
+      'cnn_{0}_results_sgd_{1}_LSO_fold{2}'.format(model, FLAGS.initial_learning_rate, ''.join([str(i) for i in fold_to_run])))
 
     ###################################
   # Test
