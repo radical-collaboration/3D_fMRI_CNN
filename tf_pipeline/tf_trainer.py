@@ -441,15 +441,16 @@ class Trainer(object):
             tower_accuracies.append(accuracy)
 
             # Analyze model
-            param_stats = tf.contrib.tfprof.model_analyzer.print_model_analysis(
-                tf.get_default_graph(),
-                tfprof_options=tf.contrib.tfprof.model_analyzer.
-                    TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
-            sys.stdout.write('total_params: %d\n' % param_stats.total_parameters)
+            if fold_num == 0:
+              param_stats = tf.contrib.tfprof.model_analyzer.print_model_analysis(
+                  tf.get_default_graph(),
+                  tfprof_options=tf.contrib.tfprof.model_analyzer.
+                      TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
+              sys.stdout.write('total_params: %d\n' % param_stats.total_parameters)
 
-            # tf.contrib.tfprof.model_analyzer.print_model_analysis(
-            #     tf.get_default_graph(),
-            #     tfprof_options=tf.contrib.tfprof.model_analyzer.FLOAT_OPS_OPTIONS)
+              # tf.contrib.tfprof.model_analyzer.print_model_analysis(
+              #     tf.get_default_graph(),
+              #     tfprof_options=tf.contrib.tfprof.model_analyzer.FLOAT_OPS_OPTIONS)
 
       # We must calculate the mean of each gradient. Note that this is the
       # synchronization point across all towers.
@@ -649,6 +650,7 @@ def main(_):
 
   log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
   for fold_num, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
+    log_info_string('Beginning fold {0} out of {1}'.format(fold_num + 1, len(fold_pairs)))
     FLAGS.train_dir = os.path.join(FLAGS.train_dir, str(fold_num))
 
     print('Splitting the data...')
