@@ -622,7 +622,7 @@ def main(_):
   # FLAGS.num_time_steps = 64
 
   if FLAGS.fold_to_run == -1:
-    fold_to_run = range(FLAGS.fold_to_run)
+    fold_to_run = range(FLAGS.num_folds)
   else:
     fold_to_run = [FLAGS.fold_to_run]
 
@@ -639,7 +639,7 @@ def main(_):
   subs_in_fold = np.ceil(np.max(sub_nums) / float(10))
   # n-fold cross validation
   fold_results = []
-  for i in range(FLAGS.num_folds):
+  for i in fold_to_run:
     '''
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
     '''
@@ -647,9 +647,8 @@ def main(_):
     train_ids = ~ test_ids
     fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
 
-    fold_num = 0
-    fold = fold_pairs[0]
-
+  log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
+  for fold_num, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
     FLAGS.train_dir = os.path.join(FLAGS.train_dir, str(fold_num))
 
     print('Splitting the data...')
@@ -658,9 +657,11 @@ def main(_):
     tr.preprocess_data()
 
     fold_results.append(tr.train(fold_num=fold_num))
-    fold_results = pd.concat(fold_results)
-    fold_results.to_pickle(
-      'cnn_{0}_results_sgd_{1}_LSO_fold{2}'.format(model, FLAGS.initial_learning_rate, ''.join([str(i) for i in fold_to_run])))
+
+  # Aggregate results and save as a pickle
+  fold_results = pd.concat(fold_results)
+  fold_results.to_pickle(
+  'cnn_{0}_results_sgd_{1}_fold{2}.pkl'.format(FLAGS.model_type, FLAGS.initial_learning_rate, ''.join([str(i) for i in fold_to_run])))
 
     ###################################
   # Test
