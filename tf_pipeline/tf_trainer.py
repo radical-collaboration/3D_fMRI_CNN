@@ -597,12 +597,14 @@ class Trainer(object):
           log_info_string("  test loss:\t\t\t{:.6f}".format(epoch_test_loss))
           log_info_string("  test accuracy:\t\t{:.2f} %".format(epoch_test_acc * 100))
 
-        results = results.append({'training_loss': epoch_train_loss,
-                                  'training_acc': epoch_train_acc,
-                                  'valid_loss': epoch_val_loss,
-                                  'valid_acc': epoch_val_acc,
-                                  'test_loss': epoch_test_loss,
-                                  'test_acc': epoch_test_acc}, ignore_index=True)
+        results = results.append({'Fold Num': fold_num,
+                                  'Epoch Num': epoch+1,
+                                  'Training Loss': epoch_train_loss,
+                                  'Training Acc': epoch_train_acc,
+                                  'Validation Loss': epoch_val_loss,
+                                  'Validation Acc': epoch_val_acc,
+                                  'Test Loss': epoch_test_loss,
+                                  'Test Acc': epoch_test_acc}, ignore_index=True)
       return results
 
 
@@ -648,10 +650,11 @@ def main(_):
     train_ids = ~ test_ids
     fold_pairs.append((np.nonzero(train_ids)[0], np.nonzero(test_ids)[0]))
 
+  train_dir = FLAGS.train_dir
   log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
   for fold_num, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
     log_info_string('Beginning fold {0} out of {1}'.format(fold_num + 1, len(fold_pairs)))
-    FLAGS.train_dir = os.path.join(FLAGS.train_dir, str(fold_num))
+    FLAGS.train_dir = os.path.join(train_dir, str(fold_num))
 
     print('Splitting the data...')
     tr.split_data(fold)
