@@ -16,11 +16,14 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 
+np.random.seed(0)
+
 import tensorflow.contrib.slim as slim
 import pdb
 
 FLAGS = tf.app.flags.FLAGS
 
+# I/O related
 tf.app.flags.DEFINE_string('data_dir', '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig',
                            """Path to the processed data, i.e. """
                            """TFRecord of Example protos.""")
@@ -28,6 +31,24 @@ tf.app.flags.DEFINE_string('data_dir', '/braintree/data2/active/users/bashivan/D
 tf.app.flags.DEFINE_string('train_dir', '/braintree/data2/active/users/bashivan/results/temp',
                            """Directory where to write event logs """
                            """and checkpoint.""")
+
+# Training flags
+tf.app.flags.DEFINE_string('model_type', 'lstm',
+                           """Model type (c1dconv, cmaxpool, clstm, lstm).""")
+
+tf.app.flags.DEFINE_string('conv_layers', '1,2,4',
+                           """Specifies number of conv stacks and layers within each stack as comma separated
+                           numbers. Each number specifies the number of layers within the stack. For instance, '2,2,1'
+                           means having 3 stacks with 2 conv layers in first, 2 in second and 1 in third stack.""")
+
+tf.app.flags.DEFINE_boolean('use_batch_norm', False,
+                            """Whether to use batchnorm layers.""")
+
+tf.app.flags.DEFINE_integer('batch_size', 32,
+                            """Number of images to process in a batch.""")
+
+tf.app.flags.DEFINE_string('num_filters', '16,32,32',
+                            """Number of filters in each stack.""")
 
 tf.app.flags.DEFINE_integer('num_epochs', 10,
                             """Number of epochs to run.""")
@@ -41,8 +62,8 @@ tf.app.flags.DEFINE_integer('fold_to_run', -1,
 tf.app.flags.DEFINE_integer('num_time_steps', 16,
                             """Number of time windows to include in each sample.""")
 
-tf.app.flags.DEFINE_string('model_type', 'lstm',
-                           """Model type (1dconv, maxpool, lstm, mix, lstm2).""")
+tf.app.flags.DEFINE_float('lstm_dropout_keep_prob', 0.5,
+                          """Keep probability for LSTM dropout.""")
 
 tf.app.flags.DEFINE_integer('num_gpus', 1,
                             """How many GPUs to use.""")
@@ -53,33 +74,21 @@ tf.app.flags.DEFINE_boolean('log_device_placement', False,
 tf.app.flags.DEFINE_integer('seed', 0,
                             """Random seed value.""")
 
+# Opt related flags
+tf.app.flags.DEFINE_string('opt', 'adam',
+                           """Optimizer choice (['adam', 'mom'])""")
+
 tf.app.flags.DEFINE_float('initial_learning_rate', 0.0001,
                           """Initial learning rate.""")
 
-tf.app.flags.DEFINE_float('num_epochs_per_decay', 1.0,
+tf.app.flags.DEFINE_float('num_epochs_per_decay', 3.0,
                           """Epochs after which learning rate decays.""")
 
 tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.1,
                           """Learning rate decay factor.""")
 
-# Evaluator FLAGS
-tf.app.flags.DEFINE_string('eval_dir', '/om/user/bashivan/temp',
-                           """Directory where to write event logs.""")
-
-tf.app.flags.DEFINE_string('checkpoint_dir', '.',
-                           """Directory where to read model checkpoints.""")
-
-# Flags governing the data used for the eval.
-tf.app.flags.DEFINE_integer('num_examples', None,
-                            """Number of examples to run. Note that the eval """
-                            )
-tf.app.flags.DEFINE_string('subset', 'train',
-                           """Either 'validation' or 'train'.""")
 tf.app.flags.DEFINE_integer('num_checkpoints_tosave', 5, "Number of checkpoints to save.")
 
-# Image related flags
-tf.app.flags.DEFINE_integer('batch_size', 32,
-                            """Number of images to process in a batch.""")
 
 
 def log_info_string(input_string):
@@ -363,7 +372,9 @@ class Trainer(object):
   # Todo: add printing functions to training loop
   def train(self, fold_num, clean=True):
     """Train on dataset for a number of steps."""
-    self.print_flags()
+    if fold_num == 0:
+      self.print_flags()
+
     if clean:
       if tf.gfile.Exists(FLAGS.train_dir):
         tf.gfile.DeleteRecursively(FLAGS.train_dir)
@@ -379,7 +390,7 @@ class Trainer(object):
       tf.set_random_seed(FLAGS.seed)
 
       # Calculate the learning rate schedule.
-      num_examples_per_epoch = self.dataset.num_examples_per_epoch(subset=FLAGS.subset, fold_num=fold_num)
+      num_examples_per_epoch = self.dataset.num_examples_per_epoch(subset='train', fold_num=fold_num)
       num_batches_per_epoch = (num_examples_per_epoch /
                                FLAGS.batch_size)
       decay_steps = int(num_batches_per_epoch * FLAGS.num_epochs_per_decay)
@@ -443,9 +454,8 @@ class Trainer(object):
             # Analyze model
             if fold_num == 0:
               param_stats = tf.contrib.tfprof.model_analyzer.print_model_analysis(
-                  tf.get_default_graph(),
-                  tfprof_options=tf.contrib.tfprof.model_analyzer.
-                      TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
+                tf.get_default_graph(),
+                tfprof_options=tf.contrib.tfprof.model_analyzer.TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
               sys.stdout.write('total_params: %d\n' % param_stats.total_parameters)
 
               # tf.contrib.tfprof.model_analyzer.print_model_analysis(
@@ -596,7 +606,6 @@ class Trainer(object):
           log_info_string("Test results:")
           log_info_string("  test loss:\t\t\t{:.6f}".format(epoch_test_loss))
           log_info_string("  test accuracy:\t\t{:.2f} %".format(epoch_test_acc * 100))
-
         results = results.append({'Fold Num': fold_num,
                                   'Epoch Num': epoch+1,
                                   'Training Loss': epoch_train_loss,
@@ -605,6 +614,7 @@ class Trainer(object):
                                   'Validation Acc': epoch_val_acc,
                                   'Test Loss': epoch_test_loss,
                                   'Test Acc': epoch_test_acc}, ignore_index=True)
+      print('Best test accuracy: {:.2f}%'.format(epoch_test_acc * 100))
       return results
 
 
@@ -617,12 +627,6 @@ def main(_):
   import numpy as np
 
   # os.environ['CUDA_VISIBLE_DEVICES'] = '0,2'
-
-  FLAGS.initial_learning_rate = 0.0001
-  # FLAGS.batch_size = 64
-  # FLAGS.num_gpus = 2
-  FLAGS.num_epochs_per_decay = 3
-  # FLAGS.num_time_steps = 64
 
   if FLAGS.fold_to_run == -1:
     fold_to_run = range(FLAGS.num_folds)
@@ -660,13 +664,14 @@ def main(_):
     tr.split_data(fold)
     print('Preprocessing data...')
     tr.preprocess_data()
-
     fold_results.append(tr.train(fold_num=fold_num))
 
   # Aggregate results and save as a pickle
   fold_results = pd.concat(fold_results)
-  fold_results.to_pickle(
-  'cnn_{0}_results_sgd_{1}_fold{2}.pkl'.format(FLAGS.model_type, FLAGS.initial_learning_rate, ''.join([str(i) for i in fold_to_run])))
+  fold_results.to_pickle('cnn_{0}_results_{1}_{2}_fold{3}.pkl'.format(FLAGS.model_type,
+                                                                      FLAGS.opt,
+                                                                      FLAGS.initial_learning_rate,
+                                                                      ''.join([str(i) for i in fold_to_run])))
 
     ###################################
   # Test

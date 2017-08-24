@@ -23,14 +23,32 @@ class TFModel(object):
     self.WEIGHT_DECAY = 0.00001
     self.endpoints = dict()
     self.MOVING_AVERAGE_DECAY = 0.9999
-
+    self.batch_norm_params = {
+      'decay': 0.99,
+      'epsilon': 0.001,
+      'scale': True,
+      'updates_collections': tf.GraphKeys.UPDATE_OPS,
+      'variables_collections': {
+        'beta': None,
+        'gamma': None,
+        'moving_mean': ['moving_vars'],
+        'moving_variance': ['moving_vars'],
+      }
+    }
   def arg_scope(self):
     with slim.arg_scope([slim.conv2d, slim.fully_connected],
                         activation_fn=tf.nn.relu,
                         biases_initializer=tf.constant_initializer(0.1)):
       with slim.arg_scope([slim.conv2d], padding='SAME'):
         with slim.arg_scope([slim.max_pool2d], padding='VALID') as arg_sc:
-          return arg_sc
+          with slim.arg_scope(
+            [slim.batch_norm],
+            variables_collections=self.batch_norm_params['variables_collections'],
+            decay=self.batch_norm_params['decay'],
+            epsilon=self.batch_norm_params['epsilon'],
+            scale=True
+          ):
+            return arg_sc
 
   def _relu(self, x, leakiness=0.0):
     """Relu, with optional leaky support."""
@@ -68,49 +86,51 @@ class TFModel(object):
     net = tf.nn.relu(net)
     return net
 
-  def build_cnn(self, inputs, num_layers=(2, 1), filter_size=3, n_filters_first=16, padding='SAME'):
+  def build_cnn(self, inputs, num_layers=FLAGS.conv_layers, filter_size=3,
+                num_filters=FLAGS.num_filters, padding='SAME'):
     """
     Build a multi-stack of conv-pool layers like VGG network.
     :param inputs: inputs to the network
-    :param num_layers: (tuple) each item determines the number of convolutions in each stack. A maxpool
-                             is added after each stack.
+    :param num_layers: (str) comma separated values. each number determines the number of convolutions in each stack.
+                             A maxpool layer is added after each stack.
     :param filter_size: (int) size of the filters used
-    :param n_filters_first: (int) number of filters in the first layer
+    :param num_filters: (str) comma separated values. number of filters in conv layers within each stack
     :param padding: (str) type of padding used for conv layers
     :return:
     """
+    num_layers = [int(i) for i in num_layers.split(',')]
+    num_filters = [int(i) for i in num_filters.split(',')]
     net = inputs
     for i, s in enumerate(num_layers):
       for l in range(s):
         with tf.variable_scope('C_{0}_{1}'.format(i, l)) as scope:
-          num_filters = n_filters_first * (2 ** i)
           net = self._conv3d(net,
-                             num_filters=num_filters,
+                             num_filters=num_filters[i],
                              filter_size=[filter_size]*3,
                              padding=padding)
+          if FLAGS.use_batch_norm:
+            net = slim.batch_norm(net)
           self.endpoints[scope.name] = net
       net = tf.nn.max_pool3d(net, _stride_arr(2), _stride_arr(2), padding='VALID')
     return net
 
-  def build_conv_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
-                      lstm_dropout_keep_prob=0.5, dropout_keep_prob=0.8):
-    def lstm_cell():
-      # the BasicLSTMCell will need a reuse parameter which is unfortunately not
-      # defined in TensorFlow 1.0. To maintain backwards compatibility, we add
-      # an argument check here:
-      if 'reuse' in inspect.getargspec(
-        tf.contrib.rnn.BasicLSTMCell.__init__).args:
-        return tf.contrib.rnn.BasicLSTMCell(num_lstm_units, forget_bias=0.0, state_is_tuple=True,
-                                            reuse=tf.get_variable_scope().reuse)
-      else:
-        return tf.contrib.rnn.BasicLSTMCell(
-          num_lstm_units, forget_bias=0.0, state_is_tuple=True)
+  @staticmethod
+  def lstm_cell(num_lstm_units):
+    if 'reuse' in inspect.getargspec(
+      tf.contrib.rnn.BasicLSTMCell.__init__).args:
+      return tf.contrib.rnn.BasicLSTMCell(num_lstm_units, forget_bias=0.0, state_is_tuple=True,
+                                          reuse=tf.get_variable_scope().reuse)
+    else:
+      return tf.contrib.rnn.BasicLSTMCell(
+        num_lstm_units, forget_bias=0.0, state_is_tuple=True)
 
-    attn_cell = lstm_cell
+  def build_conv_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
+                      lstm_dropout_keep_prob=FLAGS.lstm_dropout_keep_prob, dropout_keep_prob=1.0):
+    attn_cell = self.lstm_cell
     if is_training and lstm_dropout_keep_prob < 1:
       def attn_cell():
         return tf.contrib.rnn.DropoutWrapper(
-          lstm_cell(), output_keep_prob=lstm_dropout_keep_prob)
+          self.lstm_cell(num_lstm_units), output_keep_prob=lstm_dropout_keep_prob)
 
     if num_lstm_layers > 1:
       cell = tf.contrib.rnn.MultiRNNCell(
@@ -121,20 +141,21 @@ class TFModel(object):
     # Define convnets
     convnets = []
     for t in range(inputs.get_shape()[0].value):
-      with tf.variable_scope('conv'):
+      with tf.variable_scope('RCNN'):
         if t > 0:
           tf.get_variable_scope().reuse_variables()
-        net = self.build_cnn(inputs[t])
-        net = flatten(net)
-      with tf.variable_scope('lstm'):
-        (net, current_state) = cell(net, current_state)
+        with tf.variable_scope('conv'):
+          net = self.build_cnn(inputs[t])
+          net = flatten(net)
+        with tf.variable_scope('lstm'):
+          (net, current_state) = cell(net, current_state)
     assert 'net' in locals()
 
     self.endpoints['lstm_out'] = net
 
     with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
       with tf.variable_scope('FC'):
-        net = slim.dropout(net, is_training=is_training,
+        net = slim.dropout(net,
                            keep_prob=dropout_keep_prob,
                            scope='dropout')
 
@@ -142,7 +163,51 @@ class TFModel(object):
         net = tf.nn.relu(net)
         self.endpoints['fc_out'] = net
       with tf.variable_scope('logits'):
-        net = slim.dropout(net, is_training=is_training,
+        net = slim.dropout(net,
+                           keep_prob=dropout_keep_prob,
+                           scope='dropout')
+        net = self._fully_connected(net, num_classes)
+        self.endpoints['logits'] = net
+        self.endpoints['predictions'] = tf.nn.softmax(net)
+
+    return net, self.endpoints
+
+  def build_lstm(self, inputs, num_classes, is_training, num_lstm_units=32, num_lstm_layers=2,
+                 lstm_dropout_keep_prob=FLAGS.lstm_dropout_keep_prob, dropout_keep_prob=1.0):
+    attn_cell = self.lstm_cell
+    if is_training and lstm_dropout_keep_prob < 1:
+      def attn_cell():
+        return tf.contrib.rnn.DropoutWrapper(
+          self.lstm_cell(num_lstm_units), output_keep_prob=lstm_dropout_keep_prob)
+
+    if num_lstm_layers > 1:
+      cell = tf.contrib.rnn.MultiRNNCell(
+        [attn_cell() for _ in range(num_lstm_layers)], state_is_tuple=True)
+    else:
+      cell = attn_cell()
+    current_state = cell.zero_state(FLAGS.batch_size / FLAGS.num_gpus, tf.float32)
+    # Define convnets
+    convnets = []
+    for t in range(inputs.get_shape()[0].value):
+      with tf.variable_scope('lstm'):
+        if t > 0:
+          tf.get_variable_scope().reuse_variables()
+        net = flatten(inputs[t])
+        (net, current_state) = cell(net, current_state)
+    assert 'net' in locals()
+    self.endpoints['lstm_out'] = net
+
+    with slim.arg_scope([slim.variable], regularizer=slim.l2_regularizer(self.WEIGHT_DECAY)):
+      with tf.variable_scope('FC'):
+        net = slim.dropout(net,
+                           keep_prob=dropout_keep_prob,
+                           scope='dropout')
+
+        net = self._fully_connected(net, out_dim=128)
+        net = tf.nn.relu(net)
+        self.endpoints['fc_out'] = net
+      with tf.variable_scope('logits'):
+        net = slim.dropout(net,
                            keep_prob=dropout_keep_prob,
                            scope='dropout')
         net = self._fully_connected(net, num_classes)
@@ -155,15 +220,25 @@ class TFModel(object):
             inputs,
             num_classes,
             model_type,
-            dropout_keep_prob=0.8,
+            dropout_keep_prob=1.0,
             is_training=False,
             scope='conv_lstm'):
     # switch the N and T axes in the input to make it (T, N, x, y , z, 1)
     inputs = tf.transpose(inputs, [1, 0, 2, 3, 4, 5])
-    logits, endpoints = self.build_conv_lstm(inputs,
-                                             num_classes=num_classes,
-                                             is_training=is_training,
-                                             dropout_keep_prob=dropout_keep_prob)
+    with slim.arg_scope([slim.batch_norm, slim.dropout],
+                        is_training=is_training):
+      if model_type == 'conv_lstm':
+        logits, endpoints = self.build_conv_lstm(inputs,
+                                                 num_classes=num_classes,
+                                                 is_training=is_training,
+                                                 dropout_keep_prob=dropout_keep_prob)
+      elif model_type == 'lstm':
+        logits, endpoints = self.build_lstm(inputs,
+                                            num_classes=num_classes,
+                                            is_training=is_training,
+                                            dropout_keep_prob=dropout_keep_prob)
+      else:
+        raise ValueError('Model type not recognized (%s)' % model_type)
     return logits, endpoints
 
   def inference(self,
@@ -214,9 +289,14 @@ class TFModel(object):
     return lr
 
   def optimizer(self, lr):
-    print('Using ADAM optimizer...')
-    opt = tf.train.AdamOptimizer(lr)
-    # opt = tf.train.MomentumOptimizer(lr, 0.9, use_nesterov=True)
+    if FLAGS.opt == 'adam':
+      print('Using ADAM optimizer...')
+      opt = tf.train.AdamOptimizer(lr)
+    elif FLAGS.opt == 'mom':
+      print('Using Momentum optimizer...')
+      opt = tf.train.MomentumOptimizer(lr, 0.9, use_nesterov=True)
+    else:
+      raise ValueError('Unknown optimizer.')
     return opt
 
   def _activation_summary(self, x):
