@@ -81,7 +81,7 @@ tf.app.flags.DEFINE_string('opt', 'adam',
 tf.app.flags.DEFINE_float('initial_learning_rate', 0.0001,
                           """Initial learning rate.""")
 
-tf.app.flags.DEFINE_float('num_epochs_per_decay', 3.0,
+tf.app.flags.DEFINE_float('num_epochs_per_decay', 5.0,
                           """Epochs after which learning rate decays.""")
 
 tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.1,
@@ -286,7 +286,7 @@ class Trainer(object):
 
     # Build inference Graph.
     with tf.variable_scope(tf.get_variable_scope(), reuse=reuse_variables):
-      logits, _ = model.inference(images, num_classes=2, model_type='conv_lstm', is_training=True)
+      logits, _ = model.inference(images, num_classes=2, model_type=FLAGS.model_type, is_training=True)
 
     predictions = tf.nn.softmax(logits)
     predictions = tf.argmax(predictions, axis=1)

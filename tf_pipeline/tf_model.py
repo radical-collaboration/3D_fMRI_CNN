@@ -20,7 +20,7 @@ def _stride_arr(stride):
 class TFModel(object):
   def __init__(self):
     self.batch_size = FLAGS.batch_size
-    self.WEIGHT_DECAY = 0.00001
+    self.WEIGHT_DECAY = 0.0001
     self.endpoints = dict()
     self.MOVING_AVERAGE_DECAY = 0.9999
     self.batch_norm_params = {
@@ -81,7 +81,8 @@ class TFModel(object):
     filter_shape = filter_size + [inputs.get_shape()[-1].value, num_filters]
     n = reduce(lambda x, y: x * y, filter_size) * num_filters
     filt = slim.variable('DW', filter_shape, tf.float32,
-                         initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)))
+                         initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 / n)),
+                         regularizer=slim.l2_regularizer(self.WEIGHT_DECAY))
     net = tf.nn.conv3d(inputs, filter=filt, strides=stride_vec, padding=padding)
     net = tf.nn.relu(net)
     return net
