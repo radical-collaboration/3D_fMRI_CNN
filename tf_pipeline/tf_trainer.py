@@ -665,13 +665,17 @@ def main(_):
     print('Preprocessing data...')
     tr.preprocess_data()
     fold_results.append(tr.train(fold_num=fold_num))
-
-  # Aggregate results and save as a pickle
-  fold_results = pd.concat(fold_results)
-  fold_results.to_pickle('cnn_{0}_results_{1}_{2}_fold{3}.pkl'.format(FLAGS.model_type,
+    fold_results = pd.concat(fold_results)
+    fold_results.to_pickle('cnn_{0}_results_{1}_{2}_fold{3}.pkl'.format(FLAGS.model_type,
                                                                       FLAGS.opt,
                                                                       FLAGS.initial_learning_rate,
-                                                                      ''.join([str(i) for i in fold_to_run])))
+                                                                      ''.join([str(fold_num + 1)])))
+  # Aggregate results and save as a pickle
+  #fold_results = pd.concat(fold_results)
+  #fold_results.to_pickle('cnn_{0}_results_{1}_{2}_fold{3}.pkl'.format(FLAGS.model_type,
+                                                                      #FLAGS.opt,
+                                                                      #FLAGS.initial_learning_rate,
+                                                                      #''.join([str(i) for i in fold_to_run])))
 
     ###################################
   # Test
