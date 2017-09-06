@@ -24,19 +24,19 @@ import pdb
 FLAGS = tf.app.flags.FLAGS
 
 # I/O related
-tf.app.flags.DEFINE_string('data_dir', '/braintree/data2/active/users/bashivan/Data/fmri_conv_orig',
+tf.app.flags.DEFINE_string('data_dir', '/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN',
                            """Path to the processed data, i.e. """
                            """TFRecord of Example protos.""")
 
-tf.app.flags.DEFINE_string('train_dir', '/braintree/data2/active/users/bashivan/results/temp',
+tf.app.flags.DEFINE_string('train_dir', '/cstor/xsede/users/xs-jdakka/tensorflow/3D_fMRI_CNN/tf_pipeline/results/experiment_3',
                            """Directory where to write event logs """
                            """and checkpoint.""")
 
 # Training flags
-tf.app.flags.DEFINE_string('model_type', 'lstm',
+tf.app.flags.DEFINE_string('model_type', 'conv_lstm',
                            """Model type (c1dconv, cmaxpool, clstm, lstm).""")
 
-tf.app.flags.DEFINE_string('conv_layers', '1,2,4',
+tf.app.flags.DEFINE_string('conv_layers', '1,2',
                            """Specifies number of conv stacks and layers within each stack as comma separated
                            numbers. Each number specifies the number of layers within the stack. For instance, '2,2,1'
                            means having 3 stacks with 2 conv layers in first, 2 in second and 1 in third stack.""")
@@ -44,10 +44,10 @@ tf.app.flags.DEFINE_string('conv_layers', '1,2,4',
 tf.app.flags.DEFINE_boolean('use_batch_norm', False,
                             """Whether to use batchnorm layers.""")
 
-tf.app.flags.DEFINE_integer('batch_size', 32,
+tf.app.flags.DEFINE_integer('batch_size', 64,
                             """Number of images to process in a batch.""")
 
-tf.app.flags.DEFINE_string('num_filters', '16,32,32',
+tf.app.flags.DEFINE_string('num_filters', '16,32',
                             """Number of filters in each stack.""")
 
 tf.app.flags.DEFINE_integer('num_epochs', 10,
@@ -65,7 +65,7 @@ tf.app.flags.DEFINE_integer('num_time_steps', 16,
 tf.app.flags.DEFINE_float('lstm_dropout_keep_prob', 0.5,
                           """Keep probability for LSTM dropout.""")
 
-tf.app.flags.DEFINE_integer('num_gpus', 1,
+tf.app.flags.DEFINE_integer('num_gpus', 16,
                             """How many GPUs to use.""")
 
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
