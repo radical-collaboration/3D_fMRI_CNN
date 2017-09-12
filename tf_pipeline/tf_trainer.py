@@ -591,21 +591,21 @@ class Trainer(object):
         log_info_string("  validation loss:\t\t{:.6f}".format(epoch_val_loss))
         log_info_string("  validation accuracy:\t\t{:.2f} %".format(epoch_val_acc * 100))
 
-        if best_validation_acc < epoch_val_acc:
-          best_validation_acc = epoch_val_acc
+        #if best_validation_acc < epoch_val_acc:
+          #best_validation_acc = epoch_val_acc
 
-          epoch_acc, epoch_loss = 0, 0
-          for batch_num, batch in enumerate(self.iterate_minibatches(subset='test')):
-            inputs, targets = batch
-            [l, acc] = sess.run([loss, batch_accuracy], feed_dict={inputs_ph: inputs, labels_ph: targets})
-            epoch_acc += acc
-            epoch_loss += l
-          epoch_test_acc = epoch_acc / (batch_num + 1)
-          epoch_test_loss = epoch_loss / (batch_num + 1)
+        epoch_acc, epoch_loss = 0, 0
+        for batch_num, batch in enumerate(self.iterate_minibatches(subset='test')):
+          inputs, targets = batch
+          [l, acc] = sess.run([loss, batch_accuracy], feed_dict={inputs_ph: inputs, labels_ph: targets})
+          epoch_acc += acc
+          epoch_loss += l
+        epoch_test_acc = epoch_acc / (batch_num + 1)
+        epoch_test_loss = epoch_loss / (batch_num + 1)
 
-          log_info_string("Test results:")
-          log_info_string("  test loss:\t\t\t{:.6f}".format(epoch_test_loss))
-          log_info_string("  test accuracy:\t\t{:.2f} %".format(epoch_test_acc * 100))
+        log_info_string("Test results:")
+        log_info_string("  test loss:\t\t\t{:.6f}".format(epoch_test_loss))
+        log_info_string("  test accuracy:\t\t{:.2f} %".format(epoch_test_acc * 100))
         results = results.append({'Fold Num': fold_num,
                                   'Epoch Num': epoch+1,
                                   'Training Loss': epoch_train_loss,
@@ -631,7 +631,7 @@ def main(_):
   if FLAGS.fold_to_run == -1:
     fold_to_run = range(FLAGS.num_folds)
   else:
-    fold_to_run = [FLAGS.fold_to_run]
+    fold_to_run = [int(i) for i in FLAGS.fold_to_run.split(‘,’)]
 
   # Load the dataset
   fold_pairs = []
@@ -645,7 +645,7 @@ def main(_):
   sub_nums = tr.subjects
   subs_in_fold = np.ceil(np.max(sub_nums) / float(10))
   # n-fold cross validation
-  fold_results = []
+  #fold_results = []
   for i in fold_to_run:
     '''
     for each kfold selects fold window to collect indices for test dataset and the rest becomes train
@@ -664,6 +664,7 @@ def main(_):
     tr.split_data(fold)
     print('Preprocessing data...')
     tr.preprocess_data()
+    fold_results = []
     fold_results.append(tr.train(fold_num=fold_num))
     fold_results = pd.concat(fold_results)
     fold_results.to_pickle('cnn_{0}_results_{1}_{2}_fold{3}.pkl'.format(FLAGS.model_type,
