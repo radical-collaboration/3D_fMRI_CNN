@@ -24,7 +24,7 @@ import pdb
 FLAGS = tf.app.flags.FLAGS
 
 # I/O related
-tf.app.flags.DEFINE_string('data_dir', '/cstor/xsede/users/xs-jdakka/original_resolution_nonLPF_standardized_masked/3D_fMRI_CNN',
+tf.app.flags.DEFINE_string('data_dir', '/cstor/xsede/users/xs-jdakka/tensorflow',
                            """Path to the processed data, i.e. """
                            """TFRecord of Example protos.""")
 
@@ -56,7 +56,7 @@ tf.app.flags.DEFINE_integer('num_epochs', 10,
 tf.app.flags.DEFINE_integer('num_folds', 10,
                             """Number of folds to split the data.""")
 
-tf.app.flags.DEFINE_string('fold_to_run', '6,7,8,9',
+tf.app.flags.DEFINE_string('fold_to_run', '-1',
                             """fold numbers to run (default=-1 for all folds).""")
 
 tf.app.flags.DEFINE_integer('num_time_steps', 16,
@@ -124,9 +124,9 @@ class Trainer(object):
     """
     if random:
       # self.features = np.random.random((380, 30, 12, 13, 14, 1))
-      self.features = np.random.random((380, 137, 37, 53, 64, 1))
-      self.labels = np.random.randint(0, 2, (380,))
-      self.subjects = np.random.permutation(range(1, 96)*4)
+      self.features = np.random.random((285, 174, 37, 53, 64, 1))
+      self.labels = np.random.randint(0, 2, (285,))
+      self.subjects = np.random.permutation(range(1, 96)*3)
       self.runs = np.random.permutation(range(1, 5)*95)
 
     # Load features
@@ -656,9 +656,9 @@ def main(_):
 
   train_dir = FLAGS.train_dir
   log_info_string('Start working on fold(s) {0}'.format(fold_to_run))
-  for fold_num, fold in enumerate([fold_pairs[i] for i in fold_to_run]):
-    log_info_string('Beginning fold {0} out of {1}'.format(fold_num + 1, len(fold_pairs)))
-    FLAGS.train_dir = os.path.join(train_dir, str(fold_num))
+  for fold_num, fold in enumerate([fold_pairs[i] for i in fold_to_run[fold_num]]):
+    log_info_string('Beginning fold {0} out of {1}'.format(fold_to_run[fold_num], len(fold_pairs)))
+    FLAGS.train_dir = os.path.join(train_dir, str(fold_to_run[fold_num]))
     
     print('Splitting the data...')
     tr.split_data(fold)
@@ -666,12 +666,12 @@ def main(_):
     tr.preprocess_data()
     print('Writing results...')
     fold_results = []
-    fold_results.append(tr.train(fold_num=fold_num))
+    fold_results.append(tr.train(fold_num=fold_to_run[fold_num]))
     fold_results = pd.concat(fold_results)
     fold_results.to_pickle('cnn_{0}_results_{1}_{2}_fold{3}.pkl'.format(FLAGS.model_type,
                                                                       FLAGS.opt,
                                                                       FLAGS.initial_learning_rate,
-                                                                      ''.join([str(fold_num + 1)])))
+                                                                      ''.join([str(fold_to_run[fold_num] + 1)])))
   # Aggregate results and save as a pickle
   #fold_results = pd.concat(fold_results)
   #fold_results.to_pickle('cnn_{0}_results_{1}_{2}_fold{3}.pkl'.format(FLAGS.model_type,

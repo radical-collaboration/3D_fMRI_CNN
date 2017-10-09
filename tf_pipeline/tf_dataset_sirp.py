@@ -8,10 +8,10 @@ FLAGS = tf.app.flags.FLAGS
 class TFDataset(object):
   def __init__(self, data_dir, fold_num=0):
     super(TFDataset, self).__init__()
-    self._runs = h5py.File(os.path.join(data_dir, 'shuffled_output_runs.hdf5'))['runs']
-    self._subjects = h5py.File(os.path.join(data_dir, 'shuffled_output_subjects.hdf5'))['subjects']
-    self._features = h5py.File(os.path.join(data_dir, 'shuffled_output_features.hdf5'))['features']
-    self._labels = h5py.File(os.path.join(data_dir, 'shuffled_output_labels.hdf5'))['labels']
+    self._runs = h5py.File(os.path.join(data_dir, 'shuffled_output_runs_close_file.hdf5'))['runs']
+    self._subjects = h5py.File(os.path.join(data_dir, 'shuffled_output_subjects_close_file.hdf5'))['subjects']
+    self._features = h5py.File(os.path.join(data_dir, 'shuffled_output_features_close_file.hdf5'))['features']
+    self._labels = h5py.File(os.path.join(data_dir, 'shuffled_output_labels_close_file.hdf5'))['labels']
 
   def num_examples_per_epoch(self, subset='train', fold_num=0):
     if subset == 'train':
