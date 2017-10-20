@@ -235,8 +235,8 @@ class Trainer(object):
     self.subject_test = np.squeeze(self.subjects[test_ind]).astype(np.int32)
 
     return [(self.x_train, self.y_train, self.subject_train),
-            (self.x_val, self.y_val, self.subject_val),
-            (self.subject_test)]
+            (self.x_val, self.y_val, self.subject_val)
+           ]
 
    
   def preprocess_data(self):
