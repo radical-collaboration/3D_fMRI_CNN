@@ -101,8 +101,8 @@ from sklearn.cross_validation import StratifiedKFold
 from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import StandardScaler # RobustScaler MG commneted out on jasper
 from sklearn.ensemble import RandomForestClassifier
-#from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from sklearn.lda import LDA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+#from sklearn.lda import LDA
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import PassiveAggressiveClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -123,7 +123,7 @@ FONT_SIZE = 22
 
 # please set this number to no more than the number of cores on the machine you're
 # going to be running it on but high enough to help the computation
-PROCESSORS = 12 # 24 # 8 # 48
+PROCESSORS = 4 # 24 # 8 # 48
 seed = rndc.SystemRandom().seed()
 NAMES = ["Chance", "Nearest Neighbors", "Linear SVM", "RBF SVM",  "Decision Tree",
          "Random Forest", "Logistic Regression", "Naive Bayes", "LDA"]
